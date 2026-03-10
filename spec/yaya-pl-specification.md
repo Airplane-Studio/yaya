@@ -179,6 +179,30 @@ class Sub extends Base {
 
 所有类都是 `class` 类型的对象。
 
+类属性可以任意添加，但是类方法在类创建完后即保持固定。例如，下列代码：
+
+```yaya
+class A {}
+var a = A();
+a.test = 1;
+```
+
+是正确的；与此同时，下列代码：
+
+```yaya
+class A {}
+func method() {
+    print(this.name);
+}
+
+A.method = method;
+var a = A();
+a.name = "Hello";
+a.method();
+```
+
+就是错误的。
+
 ### 3.4 类型标注
 
 类型标注是可选项。Yaya 语言中自带类型包括 `int32`、`int`、`float`、`bool`、`string`、`list`、`map`、`function`、`class` 以及内置异常类型。除异常类型外，所有内置类型都是 `final` 的。
@@ -329,30 +353,40 @@ e = c + d; # 不合法：`operator` 关键字定义的运算符不考虑继承
 
 重载单目运算符的方法与之类似，例如想给 `Point` 重载单目负运算符，只需要在声明时 `operator - Point(a)` 即可。`operator` 的声明**不能放在一个类中作为方法**。
 
-`operator` 关键字还可以用于创建新运算符。
+`operator` 关键字还可以用于创建新运算符。其具体流程如下：
 
-如果需要使用 `operator` 关键字新建双目运算符，则需要在语句块前声明其优先级、结合性，按顺序给出。左结合性使用 `lassoc`，右结合性使用 `rassoc`。如果不指定，默认左结合。若新建单目运算符，则不必理会。如果重载旧有运算符，则其结合性不能改变。
-
-共有两种声明优先级的方法。第一种是直接指定现有运算符：
+首先在全局声明新运算符在表达式中的位置、优先级、结合性。具体格式是：
 
 ```yaya
+infix operator +- 150 lassoc;
+```
+
+第一个词可以是 prefix、infix 或 postfix，若为 prefix/postfix，则无需指定优先级和结合性。
+
+第二个词必须是 operator。
+
+第三个词是接下来要定义的运算符。
+
+接下来是一个数字，表示优先级。再后面是 `lassoc` 或 `rassoc`，分别对应左结合与右结合。如果不填结合性，默认左结合。优先级数字在上面的优先级表中，是从 `or` 为 0 开始往上依次增 10 来计算的，不能为负数，可以为小数。
+
+接下来，就可以使用 `operator` 关键字来声明运算符了。例如：
+
+```yaya
+infix operator +- 150 lassoc;
+
 class Point {
-    func init(x, y) {
+    func init(x: int = 0, y: int = 0) {
         this.x = x;
         this.y = y;
     }
-    operator + Point (b) {
-        return Point(this.x + b.x, this.y + b.y);
-    }
-    operator +- Point(b) + {
-        return Point(this.x - b.x, this.y - b.y);
-    }
+};
+
+operator Point +- Point (a, b) {
+    return Point(a.x - b.x, a.y - b.y);
 }
 ```
 
-新创建的 `+-` 运算符即与 `+` 有相同优先级，默认左结合。
-
-第二种是指定一个优先级。这需要熟记 3.5 节中提到的优先级表。以 `or` 运算符的优先级为 20，向上依次自增 10，用户可指定一个数（整数或浮点皆可）用于细节标定具体的优先级。这里不再提供具体示例。
+`operator` 语句块中遇到的运算符，必须已经事先用 `infix`、`prefix` 或 `postfix` 声明过。运算符左右分别为两个操作数的类型，若某操作数不存在，则应省略之。此处不考虑继承。运算符操作数的数量及位置，应与前面的声明相符。
 
 重载运算符方法二：部分抽象运算符无法直接重载，例如类实例的调用运算符。
 

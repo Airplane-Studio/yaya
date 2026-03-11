@@ -2,22 +2,19 @@
 
 int main(int argc, const char *argv[])
 {
-    DynamicArray<int> dyn;
-    for (int i = 0; i < 100; i++) {
-        dyn.append(i);
-    }
-    TreeMap<int, int> map;
-    for (int i = 0; i < 100; i++) {
-        map[i] = i;
-    }
-    io.println(dyn);
-    io.println(map);
-    for (auto p: map) {
-        io.println(p);
-    }
-    io.println("The number of argument given is ", argc - 1, " and they are: ");
-    for (int i = 1; i < argc; i++) {
-        io.println(argv[i]);
+    FILE *fp = fopen("spec/yaya-pl-specification.md", "rb+");
+    fseek(fp, 0, SEEK_END);
+    int fsize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    char *buf = new char[fsize + 5];
+    fread(buf, sizeof(char), fsize, fp);
+    while (buf) {
+        char *next = UTF8Util::next_pos(buf);
+        for (int i = 0; i < next - buf; i++) {
+            putchar(buf[i]);
+        }
+        putchar('\n');
+        buf = next;
     }
     return 0;
 }

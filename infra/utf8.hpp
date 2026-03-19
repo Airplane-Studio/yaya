@@ -27,7 +27,7 @@ public:
 class UTF8Char {
 private:
     uint8_t buf[4], len;
-    int compare(const UTF8Char &other) const {
+    int compare(const UTF8Char &other) {
         return to_code_point() - other.to_code_point();
     }
 public:
@@ -51,7 +51,7 @@ public:
             buf[3] = 0x80 | (code_point & 0x3f); 
         }
     }
-    int32_t to_code_point() {
+    int32_t to_code_point() const {
         switch (len) {
             case 1: return buf[0];
             case 2: return ((buf[0] & 0x1F) << 6) | (buf[1] & 0x3F);

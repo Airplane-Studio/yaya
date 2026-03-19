@@ -8,10 +8,16 @@ public:
     void print(char c) {
         yaya_printf("%c", c);
     }
+    void print(uint8_t c) {
+        yaya_printf("%c", c);
+    }
     void print(int i) {
         yaya_printf("%d", i);
     }
     void print(const char *str) {
+        yaya_printf("%s", str);
+    }
+    void print(char *str) {
         yaya_printf("%s", str);
     }
     void print(bool b) {

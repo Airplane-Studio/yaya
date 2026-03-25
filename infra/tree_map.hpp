@@ -1,5 +1,4 @@
-#ifndef _INFRA_TREEMAP_HPP
-#define _INFRA_TREEMAP_HPP
+#pragma once
 
 #include "pair.hpp"
 #include "printer.hpp"
@@ -310,5 +309,3 @@ public:
         io.print("}");
     }
 };
-
-#endif

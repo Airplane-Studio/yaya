@@ -1,5 +1,4 @@
-#ifndef _INFRA_DYNLIST_HPP
-#define _INFRA_DYNLIST_HPP
+#pragma once
 
 #include "std_wrapper.h"
 #include "printer.hpp"
@@ -126,5 +125,3 @@ public:
     T *begin() { return arr; }
     T *end() { return arr + len; }
 };
-
-#endif

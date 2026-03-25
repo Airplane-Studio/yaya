@@ -1,5 +1,4 @@
-#ifndef _INFRA_PAIR_HPP
-#define _INFRA_PAIR_HPP
+#pragma once
 
 #include "printer.hpp"
 
@@ -13,5 +12,3 @@ public:
         io.print("Pair(first = ", first, ", second = ", second, ")");
     }
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef _BASE_STD_WRAPPER_H
-#define _BASE_STD_WRAPPER_H
+#pragma once
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,5 +9,3 @@
 #define yaya_printf printf
 // operator new
 // operator delete
-
-#endif

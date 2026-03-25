@@ -1,5 +1,4 @@
-#ifndef _INFRA_PRINTER_H
-#define _INFRA_PRINTER_H
+#pragma once
 
 #include "std_wrapper.h"
 
@@ -12,6 +11,9 @@ public:
         yaya_printf("%c", c);
     }
     void print(int i) {
+        yaya_printf("%d", i);
+    }
+    void print(uint32_t i) {
         yaya_printf("%d", i);
     }
     void print(const char *str) {
@@ -46,8 +48,9 @@ public:
         print(args...);
         yaya_printf("\n");
     }
+    void println() {
+        yaya_printf("\n");
+    }
 };
 
 static IO io;
-
-#endif

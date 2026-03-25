@@ -1,6 +1,8 @@
 #define _STD_WRAP_IMPL
 #include "std_wrapper.h"
 #include "infra.h"
+#include "lexer.h"
+#include "preprocessor.h"
 
 char *read_whole_file(const char *filename, int *osize) {
     FILE *fp = fopen(filename, "rb+");
@@ -37,9 +39,35 @@ char *cmd_getline() {
     return buf;
 }
 
+void print_tokens(DynamicArray<Token> &toks) {
+    int cur_line = 0, prev_col = 1;
+    for (int i = 0; i < toks.size(); i++) {
+        if (toks[i].line != cur_line) {
+            io.print("\033[33m");
+            for (int lineno = cur_line; lineno < toks[i].line; lineno++) io.print("\n", lineno + 1, " | ");
+            io.print("\033[39m");
+            cur_line = toks[i].line;
+            prev_col = 1;
+        }
+        for (int j = 0; j < toks[i].start_col - prev_col; j++) io.print(' ');
+        int highlight = 0;
+        if (toks[i].type == TT_STRING_LITERAL) highlight = 92;
+        else if (toks[i].type == TT_KEYWORD) highlight = 95;
+        else if (toks[i].type == TT_SYMBOL) highlight = 34;
+        if (highlight) io.print("\033[", highlight, "m");
+        for (int j = 0; j < toks[i].len; j++) io.print(toks[i].start[j]);
+        if (highlight) io.print("\033[39m");
+        prev_col = toks[i].end_col;
+    }
+    io.println();
+}
+
 void run(char *code, const char *filename) {
-    io.println("Code from file ", filename, ":");
-    io.println(code);
+    Lexer l = Lexer(code);
+    Preprocessor pp;
+    DynamicArray<Token> toks = l.tokenize();
+    pp.preprocess(toks);
+    print_tokens(toks);
 }
 
 void repl() {
@@ -79,7 +107,7 @@ void repl() {
 void runFile(const char *filename) {
     char *src = read_whole_file(filename, NULL);
     if (!src) {
-        io.println("Error: failed opening file. Maybe your memory are insufficient or the file does not exist.");
+        io.println("Error: failed opening file.");
         return;
     }
     run(src, filename);

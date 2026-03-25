@@ -1,7 +1,12 @@
-operator not str (a) {
-    return "尚不支持";
-}
+infix operator +- 150 lassoc;
 
-operator int operator int(a) {
-    return "uhhh...";
+class Point {
+    func init(x: int = 0, y: int = 0) {
+        this.x = x;
+        this.y = y;
+    }
+};
+
+operator Point +- Point (a, b) {
+    return Point(a.x - b.x, a.y - b.y);
 }

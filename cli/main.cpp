@@ -1,5 +1,5 @@
 #define _STD_WRAP_IMPL
-#include "std_wrapper.h"
+#include "common.h"
 #include "infra.h"
 #include "lexer.h"
 #include "preprocessor.h"
@@ -39,21 +39,37 @@ char *cmd_getline() {
     return buf;
 }
 
+int num_len(int n) {
+    int len = 0;
+    do {
+        len++;
+        n /= 10;
+    } while (n);
+    return len;
+}
+
 void print_tokens(DynamicArray<Token> &toks) {
     int cur_line = 0, prev_col = 1;
+    int maxlineno = toks[toks.size() - 1].line;
+    int n = num_len(maxlineno);
     for (int i = 0; i < toks.size(); i++) {
         if (toks[i].line != cur_line) {
             io.print("\033[33m");
-            for (int lineno = cur_line; lineno < toks[i].line; lineno++) io.print("\n", lineno + 1, " | ");
+            for (int lineno = cur_line; lineno < toks[i].line; lineno++) {
+                io.print("\n", lineno + 1);
+                for (int i = 0; i < n - num_len(lineno + 1) + 1; i++) io.print(' ');
+                io.print("| ");
+            }
             io.print("\033[39m");
             cur_line = toks[i].line;
             prev_col = 1;
         }
         for (int j = 0; j < toks[i].start_col - prev_col; j++) io.print(' ');
         int highlight = 0;
-        if (toks[i].type == TT_STRING_LITERAL) highlight = 92;
+        if (toks[i].type == TT_STRING_LITERAL) highlight = 91;
         else if (toks[i].type == TT_KEYWORD) highlight = 95;
-        else if (toks[i].type == TT_SYMBOL) highlight = 34;
+        else if (toks[i].type == TT_SYMBOL) highlight = 92;
+        else if (toks[i].type == TT_FLOAT_LITERAL || toks[i].type == TT_INT_LITERAL) highlight = 96;
         if (highlight) io.print("\033[", highlight, "m");
         for (int j = 0; j < toks[i].len; j++) io.print(toks[i].start[j]);
         if (highlight) io.print("\033[39m");

@@ -14,6 +14,7 @@ private:
         const char *keywords[] = {
             "if", "for", "while", "operator", "var", "val", "else", "from", "func",
             "return", "class", "static", "interface", "this", "and", "or", "not",
+            "super", "infix", "prefix", "postfix", "lassoc", "rassoc",
             "true", "false", "null"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {

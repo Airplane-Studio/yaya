@@ -7,5 +7,6 @@
 
 // 以下是用到的标准库函数列表。需要移植请按此实现。
 #define yaya_printf printf
+#define yaya_strcmp strcmp
 // operator new
 // operator delete

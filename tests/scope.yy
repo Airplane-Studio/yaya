@@ -7,7 +7,7 @@ print(a);
 
 func factorial(n)
 {
-    if (n < 0) return -1;
+    if (n < 0) return 1;
     var result = 1;
     fact_inner();
     return result;

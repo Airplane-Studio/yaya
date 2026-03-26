@@ -20,8 +20,9 @@ public:
     TokenType type;
     const char *start;
     int len, line, start_col, end_col;
-    Token(TokenType type = TT_EOF, const char *start = NULL, int len = 0, int line = 0, int start_col = -1, int end_col = -1)
-      : type(type), start(start), len(len), line(line), start_col(start_col) {
+    bool at_line_beg;
+    Token(TokenType type = TT_EOF, const char *start = NULL, int len = 0, bool at_line_beg = false, int line = 0, int start_col = -1, int end_col = -1)
+      : type(type), start(start), len(len), line(line), start_col(start_col), at_line_beg(at_line_beg) {
         if (end_col == -1) end_col = start_col + len;
         this->end_col = end_col;
     }

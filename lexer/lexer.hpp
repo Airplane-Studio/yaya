@@ -9,10 +9,11 @@ private:
     char *start;
     char *current;
     int line, col;
+    bool tok_at_line_beg;
     DynamicArray<Token> result;
     Token tokAtCurrent(TokenType type, int start_col = -1) {
         if (start_col == -1) start_col = col;
-        return Token(type, start, current - start, line, start_col);
+        return Token(type, start, current - start, tok_at_line_beg ? ((tok_at_line_beg = false) || true) : false, line, start_col);
     }
     Token errTok(const char *message, int start_col = -1) {
         if (start_col == -1) start_col = col;
@@ -26,6 +27,7 @@ private:
         if (res == '\n') {
             line++;
             col = 0;
+            tok_at_line_beg = true;
         } else col++;
         current = UTF8Util::next_pos(current);
         return res;
@@ -47,7 +49,7 @@ private:
     }
     void makeString(UTF8Char &start_quote) {
         int start_col = col;
-        while (peek() != start_quote) {
+        while (!isAtEnd() && peek() != start_quote) {
             UTF8Char c = peek();
             if (c == '\\') advance();
             else if (c == '\n') {
@@ -57,6 +59,12 @@ private:
                 return;
             }
             advance();
+        }
+        if (isAtEnd()) {
+            result.append(tokAtCurrent(TT_SEGMENT, start_col));
+            result.append(errTok("Unterminated string", start_col));
+            advance();
+            return;
         }
         advance();
         result.append(tokAtCurrent(TT_STRING_LITERAL, start_col));
@@ -171,7 +179,7 @@ private:
         }
     }
 public:
-    Lexer(char *src) : start(src), current(src), line(1), col(0) {
+    Lexer(char *src) : start(src), current(src), line(1), col(0), tok_at_line_beg(true) {
     }
     DynamicArray<Token> tokenize() {
         do {

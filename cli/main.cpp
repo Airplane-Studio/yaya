@@ -1,4 +1,3 @@
-#define _STD_WRAP_IMPL
 #include "common.h"
 #include "infra.h"
 #include "lexer.h"
@@ -70,9 +69,17 @@ void print_tokens(DynamicArray<Token> &toks) {
         else if (toks[i].type == TT_KEYWORD) highlight = 95;
         else if (toks[i].type == TT_SYMBOL) highlight = 92;
         else if (toks[i].type == TT_FLOAT_LITERAL || toks[i].type == TT_INT_LITERAL) highlight = 96;
+        else if (toks[i].type == TT_SEGMENT) highlight = 41;
+        else if (toks[i].type == TT_ERROR) {
+            // its previous must be a TT_SEGMENT
+            io.print("\n");
+            for (int j = 0; j < toks[i - 1].start_col + n + 3; j++) io.print(' ');
+            io.print("^ ", toks[i].start);
+            continue;
+        }
         if (highlight) io.print("\033[", highlight, "m");
         for (int j = 0; j < toks[i].len; j++) io.print(toks[i].start[j]);
-        if (highlight) io.print("\033[39m");
+        if (highlight) io.print("\033[39;49m");
         prev_col = toks[i].end_col;
     }
     io.println();

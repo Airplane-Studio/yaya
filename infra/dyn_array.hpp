@@ -46,13 +46,13 @@ public:
         other.arr = nullptr;
     }
     DynamicArray &operator=(const DynamicArray<T> &other) {
-        free(arr);
+        delete[] arr;
         init_arr(other.len);
         for (int i = 0; i < len; i++) arr[i] = other.arr[i];
         return *this;
     }
     DynamicArray &operator=(DynamicArray<T> &&other) {
-        free(arr);
+        delete[] arr;
         arr = other.arr;
         len = other.len;
         capacity_ = other.capacity_;
@@ -69,6 +69,13 @@ public:
         for (int i = len - 1; i >= index; i++) arr[i + 1] = (T&&) arr[i];
         arr[index] = value;
         len++;
+    }
+    void insertAll(int index, DynamicArray<T> &other, int start_idx = 0) {
+        if (start_idx >= other.len) return;
+        adjust_capacity(len + other.len - start_idx);
+        for (int i = len - 1; i >= index; i--) arr[i + other.len - start_idx] = arr[i];
+        for (int i = start_idx; i < other.len; i++) arr[i] = other.arr[i];
+        len += other.len - start_idx;
     }
     void remove(int index) {
         for (int i = index; i < len - 1; i++) arr[i] = (T&&) arr[i + 1];

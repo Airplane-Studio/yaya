@@ -30,19 +30,33 @@ private:
         }
         return false;
     }
+    bool expand_macro_all(Token &tok, DynamicArray<Token> &res) {
+        TreeMap<UTF8String, bool> hideset;
+        res.append(tok);
+        bool flag = false;
+        for (int ptr = 0; ptr < res.size(); ptr++) {
+            while (!hideset.count(res[ptr].lexeme) && find_macro(res[ptr]) != -1) {
+                DynamicArray<Token> temp;
+                Token cur = res[ptr];
+                bool success = expand_macro_once(cur, temp);
+                if (success) {
+                    res[ptr] = temp[0];
+                    res.insertAll(ptr + 1, temp, 1);
+                    hideset[cur.lexeme] = true;
+                } else res.remove(ptr);
+                flag = flag || success;
+            }
+        }
+        return flag;
+    }
     bool expanded_macro(Token &tok) {
         DynamicArray<Token> temp;
-        DynamicArray<Token> hideset;
-        // TODO: multiple extension
-        return expand_macro_once(tok, res);
-    }
-    bool str_eq(const char *a, Token &tok) {
-        const char *b = tok.start;
-        int len = max(strlen(a), tok.len);
-        for (int i = 0; i < len; i++) {
-            if (a[i] != b[i]) return false;
+        bool success = expand_macro_all(tok, temp);
+        if (success) {
+            // TODO: position adjusting
+            res.extend(temp);
         }
-        return true;
+        return success;
     }
     bool is_keyword(Token &tok) {
         const char *keywords[] = {
@@ -52,7 +66,7 @@ private:
             "true", "false", "null"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
-            if (str_eq(keywords[j], tok)) return true;
+            if (tok.lexeme == keywords[j]) return true;
         }
         return false;
     }
@@ -67,13 +81,13 @@ private:
                 continue;
             }
 
-            if (!tok[i].at_line_beg || !str_eq("%", tok[i])) {
+            if (!tok[i].at_line_beg || tok[i].lexeme != "%") {
                 res.append(tok[i]);
                 continue;
             }
 
             i++;
-            if (str_eq("define", tok[i])) {
+            if (tok[i].lexeme == "define") {
                 // %define
                 i++;
                 MacroInfo m;

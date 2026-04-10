@@ -1,6 +1,4 @@
-%define ASSERT assert(
-%define if 5
-%define five "5"
-%define END )
-
-ASSERT if five END ;
+var M4 = 2;
+%define M4 M5 + 2
+%define M5 M4 * 3
+print(M4);

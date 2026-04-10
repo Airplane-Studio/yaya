@@ -24,6 +24,7 @@ public:
 };
 
 class UTF8Char {
+    friend class UTF8String;
 private:
     uint8_t buf[4], len;
     int compare(UTF8Char &other) {
@@ -40,10 +41,10 @@ private:
         }
     }
 public:
-    UTF8Char(char *start) {
-        int cplen = UTF8Util::get_cplen(start);
+    UTF8Char(char *start, int len = -1) {
+        int cplen = len != -1 ? len : UTF8Util::get_cplen(start);
         for (int i = 0; i < cplen; i++) buf[i] = start[i];
-        len = cplen;
+        this->len = cplen;
         cached_cp = calc_code_point();
     }
     UTF8Char(uint32_t code_point = 0) {
@@ -67,15 +68,15 @@ public:
         }
         cached_cp = code_point;
     }
-    void output() {
+    void output() const {
         for (int i = 0; i < len; i++) io.print(buf[i]);
     }
 
-    uint32_t toCodePoint() {
+    uint32_t toCodePoint() const {
         return cached_cp;
     }
 
-    operator uint32_t() {
+    operator uint32_t() const {
         return cached_cp;
     }
 
@@ -107,14 +108,85 @@ public:
     }
 
     bool isSymbol() {
-        return !isAlnum() && !isCtrnl() && !isSpace() && cached_cp != '"' && cached_cp != '\'' && cached_cp != '#';
+        return !isAlnum() && !isCtrnl() && !isSpace()
+            && cached_cp != '"' && cached_cp != '\'' && cached_cp != '#'
+            && cached_cp != ')' && cached_cp != '(' && cached_cp != '[' && cached_cp != ']' && cached_cp != '{' && cached_cp != '}';
     }
 };
 
 class UTF8String {
 private:
-    char *buf;
-    DynamicArray<int> cp_start_pos;
+    DynamicArray<UTF8Char> arr;
+    uint32_t actual_size;
+    int compare(const UTF8String &other) const {
+        for (int i = 0; i < size(); i++) {
+            uint32_t cp1 = arr[i].toCodePoint(), cp2 = other[i].toCodePoint();
+            if (cp1 != cp2) return cp1 - cp2;
+        }
+        return 0;
+    }
 public:
-    // TODO: I don't know when can start this bullshit
+    UTF8String(const char *str, int len = -1) {
+        if (len == -1) len = strlen(str);
+        for (int i = 0; i < len; ) {
+            int cplen = 0;
+            char byte = str[i];
+            if ((byte & 0xc0) == 0x80) cplen = 0;
+            else if ((byte & 0xf8) == 0xf0) cplen = 4;
+            else if ((byte & 0xf0) == 0xe0) cplen = 3;
+            else if ((byte & 0xe0) == 0xc0) cplen = 2;
+            else cplen = 1;
+            arr.append(UTF8Char((char *) str + i, cplen));
+            i += cplen;
+        }
+        actual_size = len;
+    }
+    UTF8String(char c = '\0') {
+        if (c) {
+            arr.append(UTF8Char(c));
+            actual_size = 1;
+        }
+    }
+    UTF8String(UTF8Char ch) {
+        if (ch != '\0') {
+            arr.append(ch);
+            actual_size = ch.len;
+        }
+    }
+    bool operator<(const UTF8String &other) const { return compare(other) < 0; }
+    bool operator>(const UTF8String &other) const { return compare(other) > 0; }
+    bool operator<=(const UTF8String &other) const { return compare(other) <= 0; }
+    bool operator>=(const UTF8String &other) const { return compare(other) >= 0; }
+    bool operator==(const UTF8String &other) const { return compare(other) == 0; }
+    bool operator!=(const UTF8String &other) const { return compare(other) != 0; }
+    UTF8String operator+(const UTF8String &other) {
+        DynamicArray<UTF8Char> new_arr = arr + other.arr;
+        UTF8String res;
+        res.arr.extend(new_arr);
+        return res;
+    }
+    UTF8String operator+=(const UTF8String &other) {
+        return (*this) = (*this) + other;
+    }
+    UTF8Char operator[](int index) const {
+        if (index < size()) return arr[index];
+        return UTF8Char(0u);
+    }
+    uint32_t size() const {
+        return arr.size();
+    }
+    uint32_t bytesize() const {
+        return actual_size;
+    }
+    void output() const {
+        for (int i = 0; i < arr.size(); i++) io.print(arr[i]);
+    }
+    bool contains(const UTF8Char &element) {
+        for (int i = 0; i < arr.size(); i++) {
+            if (arr[i] == element) return true;
+        }
+        return false;
+    }
+    UTF8Char *begin() { return arr.begin(); }
+    UTF8Char *end() { return arr.end(); }
 };

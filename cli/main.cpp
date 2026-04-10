@@ -74,11 +74,11 @@ void print_tokens(DynamicArray<Token> &toks) {
             // its previous must be a TT_SEGMENT
             io.print("\n");
             for (int j = 0; j < toks[i - 1].start_col + n + 3; j++) io.print(' ');
-            io.print("^ ", toks[i].start);
+            io.print("^ ", toks[i].lexeme);
             continue;
         }
         if (highlight) io.print("\033[", highlight, "m");
-        for (int j = 0; j < toks[i].len; j++) io.print(toks[i].start[j]);
+        io.print(toks[i].lexeme);
         if (highlight) io.print("\033[39;49m");
         prev_col = toks[i].end_col;
     }

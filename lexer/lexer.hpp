@@ -167,6 +167,7 @@ private:
                 c = peek();
             }
         }
+        else if (UTF8String("()[]{}").contains(c)) result.append(tokAtCurrent(TT_SYMBOL));
         else if (c.isDigit() || (c == '.' && peek().isDigit())) makeNumber(c); // note that .5 will be lex into "." and "5".
         else if (c.isSymbol()) makeSymbol();
         else if (c == '"' || c == '\'') makeString(c);

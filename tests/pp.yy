@@ -1,4 +1,6 @@
-%include "tests/custom_op.yy"
-%if true
-print(2 % 3);
-%endif
+%define ASSERT assert(
+%define if 5
+%define five "5"
+%define END )
+
+ASSERT if five END ;

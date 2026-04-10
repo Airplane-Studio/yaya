@@ -16,6 +16,13 @@ enum TokenType {
 };
 
 class Token {
+private:
+    bool str_eq(const char *a, const char *b, int len) {
+        for (int i = 0; i < len; i++) {
+            if (a[i] != b[i]) return false;
+        }
+        return true;
+    }
 public:
     TokenType type;
     const char *start;
@@ -27,7 +34,7 @@ public:
         this->end_col = end_col;
     }
     bool operator==(const Token &other) {
-        return type == other.type && !strcmp(start, other.start);
+        return type == other.type && str_eq(start, other.start, max(len, other.len));
     }
     void output() {
         static const char *type2str[] = {

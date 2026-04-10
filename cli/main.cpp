@@ -90,7 +90,7 @@ void run(char *code, const char *filename) {
     Preprocessor pp;
     DynamicArray<Token> toks = l.tokenize();
     pp.preprocess(toks);
-    print_tokens(toks);
+    io.println(toks);
 }
 
 void repl() {

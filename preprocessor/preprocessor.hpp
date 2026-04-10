@@ -4,7 +4,41 @@
 
 class Preprocessor {
 private:
-    bool str_eq(const char *a, const char *b, int len) {
+    struct MacroInfo {
+        Token name;
+        DynamicArray<Token> body;
+        void output() {
+            io.print("Macro[name = ", name, ", body = ", body, "]");
+        }
+    };
+    DynamicArray<MacroInfo> macros;
+    DynamicArray<Token> res;
+    DynamicArray<Token> hideset;
+    int find_macro(Token &tok) {
+        for (int i = 0; i < macros.size(); i++) {
+            if (macros[i].name == tok) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
+        int idx = find_macro(tok);
+        if (idx != -1) {
+            res.extend(macros[idx].body);
+            return true;
+        }
+        return false;
+    }
+    bool expanded_macro(Token &tok) {
+        DynamicArray<Token> temp;
+        DynamicArray<Token> hideset;
+        // TODO: multiple extension
+        return expand_macro_once(tok, res);
+    }
+    bool str_eq(const char *a, Token &tok) {
+        const char *b = tok.start;
+        int len = max(strlen(a), tok.len);
         for (int i = 0; i < len; i++) {
             if (a[i] != b[i]) return false;
         }
@@ -18,7 +52,7 @@ private:
             "true", "false", "null"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
-            if (str_eq(tok.start, keywords[j], max(tok.len, strlen(keywords[j])))) return true;
+            if (str_eq(keywords[j], tok)) return true;
         }
         return false;
     }
@@ -28,17 +62,31 @@ private:
         }
     }
     DynamicArray<Token> preprocess_impl(DynamicArray<Token> &tok) {
-        DynamicArray<Token> res;
         for (int i = 0; i < tok.size(); i++) {
-            if (!tok[i].at_line_beg || !str_eq(tok[i].start, "%", max(tok[i].len, 1))) {
+            if (expanded_macro(tok[i])) {
+                continue;
+            }
+
+            if (!tok[i].at_line_beg || !str_eq("%", tok[i])) {
                 res.append(tok[i]);
                 continue;
             }
 
-            if (tok[i].at_line_beg) {
+            i++;
+            if (str_eq("define", tok[i])) {
+                // %define
                 i++;
-                io.println("Preprocessor directive: ", tok[i]);
-            }
+                MacroInfo m;
+                m.name = tok[i];
+                int line = tok[i].line;
+                DynamicArray<Token> macro_body;
+                while (tok[i + 1].line == line) {
+                    i++;
+                    macro_body.append(tok[i]);
+                }
+                m.body = macro_body;
+                macros.append(m);
+            } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;
     }

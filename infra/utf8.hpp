@@ -123,7 +123,9 @@ private:
             uint32_t cp1 = arr[i].toCodePoint(), cp2 = other[i].toCodePoint();
             if (cp1 != cp2) return cp1 - cp2;
         }
-        return 0;
+        if (arr.size() == other.arr.size()) return 0;
+        else if (arr.size() < other.arr.size()) return -1;
+        return 1;
     }
 public:
     UTF8String(const char *str, int len = -1) {

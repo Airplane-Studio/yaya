@@ -63,7 +63,7 @@ void print_tokens(DynamicArray<Token> &toks) {
             cur_line = toks[i].line;
             prev_col = 1;
         }
-        for (int j = 0; j < toks[i].start_col - prev_col; j++) io.print(' ');
+        for (int j = 0; j < toks[i].start_col - prev_col - 1; j++) io.print(' ');
         int highlight = 0;
         if (toks[i].type == TT_STRING_LITERAL) highlight = 91;
         else if (toks[i].type == TT_KEYWORD) highlight = 95;
@@ -90,7 +90,8 @@ void run(char *code, const char *filename) {
     Preprocessor pp;
     DynamicArray<Token> toks = l.tokenize();
     pp.preprocess(toks);
-    io.println(toks);
+    //io.println(toks);
+    print_tokens(toks);
 }
 
 void repl() {

@@ -54,6 +54,12 @@ private:
         bool success = expand_macro_all(tok, temp);
         if (success) {
             // TODO: position adjusting
+            for (int i = 0; i < temp.size(); i++) {
+                temp[i].line = tok.line;
+                temp[i].replaced = true;
+                temp[i].orig_start_col = tok.start_col;
+                temp[i].orig_end_col = tok.end_col;
+            }
             res.extend(temp);
         }
         return success;
@@ -98,15 +104,57 @@ private:
                     i++;
                     macro_body.append(tok[i]);
                 }
+                for (int i = macro_body.size() - 1; i > 0; i--) {
+                    macro_body[i].start_col -= macro_body[i - 1].end_col;
+                    macro_body[i].end_col -= macro_body[i - 1].end_col;
+                }
+                macro_body[0].start_col -= macro_body[0].end_col;
+                macro_body[0].end_col = 0;
                 m.body = macro_body;
                 macros.append(m);
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;
     }
+    void adjust_position(DynamicArray<Token> &tok) {
+        DynamicArray<DynamicArray<Token>> lines;
+        DynamicArray<Token> line;
+        int cur_line = tok[0].line;
+        for (int i = 0; i < tok.size(); i++) {
+            if (tok[i].line != cur_line) {
+                lines.append(line);
+                line.clear();
+            }
+            line.append(tok[i]);
+            cur_line = tok[i].line;
+        }
+        lines.append(line);
+        for (int lineno = 0; lineno < lines.size(); lineno++) {
+            if (lines[lineno][0].replaced) {
+                lines[lineno][0].start_col = lines[lineno][0].orig_start_col;
+                lines[lineno][0].end_col = lines[lineno][0].orig_end_col;
+            }
+            for (int i = 1; i < lines[lineno].size(); i++) {
+                if (lines[lineno][i].replaced && lines[lineno][i].start_col > 0) continue;
+                lines[lineno][i].start_col = lines[lineno][i].orig_start_col - lines[lineno][i - 1].orig_end_col;
+                lines[lineno][i].end_col = lines[lineno][i].orig_end_col - lines[lineno][i - 1].orig_end_col;
+            }
+        }
+        for (int lineno = 0; lineno < lines.size(); lineno++) {
+            for (int i = 1; i < lines[lineno].size(); i++) {
+                lines[lineno][i].start_col += lines[lineno][i - 1].end_col;
+                lines[lineno][i].end_col += lines[lineno][i - 1].end_col;
+            }
+        }
+        tok.clear();
+        for (int lineno = 0; lineno < lines.size(); lineno++) {
+            tok.extend(lines[lineno]);
+        }
+    }
 public:
     void preprocess(DynamicArray<Token> &tok) {
         tok = preprocess_impl(tok);
+        adjust_position(tok);
         convert_keywords(tok);
     }
 };

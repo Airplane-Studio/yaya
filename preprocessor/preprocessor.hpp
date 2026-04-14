@@ -7,16 +7,17 @@ private:
     struct MacroInfo {
         Token name;
         DynamicArray<Token> body;
+        bool is_objlike, active;
         void output() {
-            io.print("Macro[name = ", name, ", body = ", body, "]");
+            io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike" "]");
         }
     };
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
-    DynamicArray<Token> hideset;
+    DynamicArray<Token> orig;
     int find_macro(Token &tok) {
-        for (int i = 0; i < macros.size(); i++) {
-            if (macros[i].name == tok) {
+        for (int i = macros.size() - 1; i >= 0; i--) {
+            if (macros[i].name == tok && macros[i].active) {
                 return i;
             }
         }
@@ -24,18 +25,27 @@ private:
     }
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         int idx = find_macro(tok);
-        if (idx != -1) {
+        if (idx == -1) return false;
+        io.println("expanding macro: ", macros[idx]);
+        if (macros[idx].is_objlike) {
             res.extend(macros[idx].body);
             return true;
         }
-        return false;
+        if (orig[tok.idx + 1].lexeme != "(") return false;
+        // TODO: parse arguments
+        // for now we only mark them as deleted.
+        orig[tok.idx + 1].deleted = true;
+        orig[tok.idx + 1 + 1].deleted = true;
+        res.extend(macros[idx].body);
+        io.println(res);
+        return true;
     }
     bool expand_macro_all(Token &tok, DynamicArray<Token> &res) {
         TreeMap<UTF8String, bool> hideset;
         res.append(tok);
         bool flag = false;
         for (int ptr = 0; ptr < res.size(); ptr++) {
-            while (!hideset.count(res[ptr].lexeme) && find_macro(res[ptr]) != -1) {
+            while (ptr < res.size() && !hideset.count(res[ptr].lexeme) && find_macro(res[ptr]) != -1) {
                 DynamicArray<Token> temp;
                 Token cur = res[ptr];
                 bool success = expand_macro_once(cur, temp);
@@ -53,7 +63,6 @@ private:
         DynamicArray<Token> temp;
         bool success = expand_macro_all(tok, temp);
         if (success) {
-            // TODO: position adjusting
             for (int i = 0; i < temp.size(); i++) {
                 temp[i].line = tok.line;
                 temp[i].replaced = true;
@@ -88,7 +97,7 @@ private:
             }
 
             if (!tok[i].at_line_beg || tok[i].lexeme != "%") {
-                res.append(tok[i]);
+                if (!orig[i].deleted) res.append(tok[i]);
                 continue;
             }
 
@@ -99,6 +108,14 @@ private:
                 MacroInfo m;
                 m.name = tok[i];
                 int line = tok[i].line;
+                bool is_objlike = true;
+                if (tok[i + 1].lexeme == "(" && tok[i + 1].start_col - tok[i].end_col == 1) {
+                    is_objlike = false;
+                    i++;
+                    // TODO: parse arguments
+                    if (tok[i + 1].lexeme == ")") i++; // here *should* be ")", but we cannot guarantee.
+                    else ; // we should report some error... but how can we do it now?
+                }
                 DynamicArray<Token> macro_body;
                 while (tok[i + 1].line == line) {
                     i++;
@@ -111,7 +128,13 @@ private:
                 macro_body[0].start_col -= macro_body[0].end_col;
                 macro_body[0].end_col = 0;
                 m.body = macro_body;
+                m.is_objlike = is_objlike;
                 macros.append(m);
+            } else if (tok[i].lexeme == "undef") {
+                // %undef
+                i++;
+                int idx = find_macro(tok[i]);
+                if (idx != -1) macros[idx].active = false;
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;
@@ -153,6 +176,8 @@ private:
     }
 public:
     void preprocess(DynamicArray<Token> &tok) {
+        orig = tok;
+        for (int i = 0; i < tok.size(); i++) tok[i].idx = i;
         tok = preprocess_impl(tok);
         adjust_position(tok);
         convert_keywords(tok);

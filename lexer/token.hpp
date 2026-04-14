@@ -20,8 +20,10 @@ public:
     TokenType type;
     UTF8String lexeme;
     int line, start_col, end_col;
-    bool at_line_beg, replaced;
+    // the properties following are for preprocessor
+    bool at_line_beg, replaced, deleted;
     int orig_start_col, orig_end_col;
+    int idx;
     Token(TokenType type = TT_EOF, const char *start = NULL, int len = 0, bool at_line_beg = false, int line = 0, int start_col = -1, int end_col = -1)
       : type(type), lexeme(start, len), line(line), start_col(start_col), at_line_beg(at_line_beg), replaced(false),
         orig_start_col(start_col) {

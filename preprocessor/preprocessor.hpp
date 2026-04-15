@@ -26,7 +26,6 @@ private:
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         int idx = find_macro(tok);
         if (idx == -1) return false;
-        io.println("expanding macro: ", macros[idx]);
         if (macros[idx].is_objlike) {
             res.extend(macros[idx].body);
             return true;
@@ -37,7 +36,6 @@ private:
         orig[tok.idx + 1].deleted = true;
         orig[tok.idx + 1 + 1].deleted = true;
         res.extend(macros[idx].body);
-        io.println(res);
         return true;
     }
     bool expand_macro_all(Token &tok, DynamicArray<Token> &res) {
@@ -97,7 +95,8 @@ private:
             }
 
             if (!tok[i].at_line_beg || tok[i].lexeme != "%") {
-                if (!orig[i].deleted) res.append(tok[i]);
+                if (orig[i].deleted) tok[i].deleted = true;
+                res.append(tok[i]);
                 continue;
             }
 
@@ -159,6 +158,11 @@ private:
             }
             for (int i = 1; i < lines[lineno].size(); i++) {
                 if (lines[lineno][i].replaced && lines[lineno][i].start_col > 0) continue;
+                if (lines[lineno][i].deleted) {
+                    lines[lineno][i].start_col = 0;
+                    lines[lineno][i].end_col = 0;
+                    continue;
+                }
                 lines[lineno][i].start_col = lines[lineno][i].orig_start_col - lines[lineno][i - 1].orig_end_col;
                 lines[lineno][i].end_col = lines[lineno][i].orig_end_col - lines[lineno][i - 1].orig_end_col;
             }
@@ -171,7 +175,9 @@ private:
         }
         tok.clear();
         for (int lineno = 0; lineno < lines.size(); lineno++) {
-            tok.extend(lines[lineno]);
+            for (int i = 0; i < lines[lineno].size(); i++) {
+                if (!lines[lineno][i].deleted) tok.append(lines[lineno][i]);
+            }
         }
     }
 public:

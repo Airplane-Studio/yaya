@@ -26,7 +26,7 @@ public:
     int idx;
     Token(TokenType type = TT_EOF, const char *start = NULL, int len = 0, bool at_line_beg = false, int line = 0, int start_col = -1, int end_col = -1)
       : type(type), lexeme(start, len), line(line), start_col(start_col), at_line_beg(at_line_beg), replaced(false),
-        orig_start_col(start_col) {
+        orig_start_col(start_col), deleted(false) {
         if (end_col == -1) end_col = start_col + len - 1;
         this->orig_end_col = this->end_col = end_col;
     }

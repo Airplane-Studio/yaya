@@ -1,7 +1,4 @@
-%define M7() 1
-var M7 = 5;
-print(M7, M7());
-%undef M7
-%define M7 ()
-func ret3() { return 3; }
-print(ret3 M7);
+%define true 1
+%define false 0
+%define t_and_f true, false
+print(t_and_f);

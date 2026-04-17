@@ -66,16 +66,14 @@ public:
     }
     void insert(int index, const T &value) {
         adjust_capacity(len + 1);
-        for (int i = len - 1; i >= index; i++) arr[i + 1] = (T&&) arr[i];
+        for (int i = len - 1; i >= index; i--) arr[i + 1] = (T&&) arr[i];
         arr[index] = value;
         len++;
     }
     void insertAll(int index, DynamicArray<T> &other, int start_idx = 0) {
-        if (start_idx >= other.len) return;
-        adjust_capacity(len + other.len - start_idx);
-        for (int i = len - 1; i >= index; i--) arr[i + other.len - start_idx] = arr[i];
-        for (int i = start_idx; i < other.len; i++) arr[i] = other.arr[i];
-        len += other.len - start_idx;
+        for (int i = start_idx; i < other.len; i++) {
+            insert(index + i - start_idx, other[i]);
+        }
     }
     void remove(int index) {
         for (int i = index; i < len - 1; i++) arr[i] = (T&&) arr[i + 1];

@@ -8,6 +8,7 @@ private:
         Token name;
         DynamicArray<Token> body;
         bool is_objlike, active;
+        DynamicArray<Token> params;
         void output() {
             io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike" "]");
         }
@@ -23,7 +24,59 @@ private:
         }
         return -1;
     }
+    DynamicArray<Token> read_macro_arg_one(Token &current, int &end_idx) {
+        int cur_idx = current.idx;
+        DynamicArray<Token> res;
+        while (cur_idx < orig.size() && orig[cur_idx].lexeme != "," && orig[cur_idx].lexeme != ")") {
+            res.append(orig[cur_idx]);
+            orig[cur_idx].deleted = true;
+            cur_idx++;
+        }
+        end_idx = cur_idx;
+        if (cur_idx >= orig.size()) {
+            io.println("TODO: report error");
+        }
+        return res;
+    }
+    DynamicArray<DynamicArray<Token>> read_macro_args(Token &current, int params_size) {
+        DynamicArray<DynamicArray<Token>> res;
+        int cur_idx = current.idx;
+
+        for (int i = 0; i < params_size; i++) {
+            if (i) {
+                if (orig[cur_idx].lexeme != ",") {
+                    io.println("TODO: report error");
+                } else {
+                    orig[cur_idx].deleted = true;
+                    cur_idx++;
+                }
+            }
+            DynamicArray<Token> single = read_macro_arg_one(orig[cur_idx], cur_idx);
+            if (single.size()) res.append(single);
+            else break;
+        }
+
+        if (res.size() != params_size) {
+            io.println("TODO: report error");
+        }
+        if (orig[cur_idx].lexeme != ")") {
+            io.println("TODO: report error");
+        } else {
+            orig[cur_idx].deleted = true;
+        }
+        return res;
+    }
+    bool find_arg(DynamicArray<DynamicArray<Token>> &args, Token arg) {
+        for (int i = 0; i < args.size(); i++) {
+            if (args[i].size() == 1 && args[i][0] == arg) return true;
+        }
+        return false;
+    }
+    DynamicArray<Token> subst_args(DynamicArray<Token> &body, DynamicArray<DynamicArray<Token>> &args) {
+        return body;
+    }
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
+        if (tok.deleted) return false;
         int idx = find_macro(tok);
         if (idx == -1) return false;
         if (macros[idx].is_objlike) {
@@ -34,20 +87,21 @@ private:
         // TODO: parse arguments
         // for now we only mark them as deleted.
         orig[tok.idx + 1].deleted = true;
-        orig[tok.idx + 1 + 1].deleted = true;
-        res.extend(macros[idx].body);
+        DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size());
+        res.extend(subst_args(macros[idx].body, args));
         return true;
     }
     bool expand_macro_all(Token &tok, DynamicArray<Token> &res) {
-        TreeMap<UTF8String, bool> hideset;
         res.append(tok);
         bool flag = false;
         for (int ptr = 0; ptr < res.size(); ptr++) {
+            TreeMap<UTF8String, bool> hideset;
             while (ptr < res.size() && !hideset.count(res[ptr].lexeme) && find_macro(res[ptr]) != -1) {
                 DynamicArray<Token> temp;
                 Token cur = res[ptr];
                 bool success = expand_macro_once(cur, temp);
                 if (success) {
+                    // TODO: position adjusting
                     res[ptr] = temp[0];
                     res.insertAll(ptr + 1, temp, 1);
                     hideset[cur.lexeme] = true;
@@ -90,12 +144,12 @@ private:
     }
     DynamicArray<Token> preprocess_impl(DynamicArray<Token> &tok) {
         for (int i = 0; i < tok.size(); i++) {
+            if (orig[i].deleted) tok[i].deleted = true;
             if (expanded_macro(tok[i])) {
                 continue;
             }
 
             if (!tok[i].at_line_beg || tok[i].lexeme != "%") {
-                if (orig[i].deleted) tok[i].deleted = true;
                 res.append(tok[i]);
                 continue;
             }
@@ -108,12 +162,24 @@ private:
                 m.name = tok[i];
                 int line = tok[i].line;
                 bool is_objlike = true;
+                DynamicArray<Token> params;
                 if (tok[i + 1].lexeme == "(" && tok[i + 1].start_col - tok[i].end_col == 1) {
                     is_objlike = false;
                     i++;
-                    // TODO: parse arguments
-                    if (tok[i + 1].lexeme == ")") i++; // here *should* be ")", but we cannot guarantee.
-                    else ; // we should report some error... but how can we do it now?
+                    i++;
+                    while (tok[i].lexeme != ")") {
+                        if (params.size()) {
+                            if (tok[i].lexeme != ",") {
+                                io.println("TODO: report error");
+                            } else i++;
+                        }
+                        if (tok[i].type != TT_IDENTIFIER) {
+                            io.println("TODO: report error");
+                        } else {
+                            params.append(tok[i]);
+                        }
+                        i++;
+                    }
                 }
                 DynamicArray<Token> macro_body;
                 while (tok[i + 1].line == line) {
@@ -128,6 +194,7 @@ private:
                 macro_body[0].end_col = 0;
                 m.body = macro_body;
                 m.is_objlike = is_objlike;
+                m.params = params;
                 macros.append(m);
             } else if (tok[i].lexeme == "undef") {
                 // %undef
@@ -182,8 +249,8 @@ private:
     }
 public:
     void preprocess(DynamicArray<Token> &tok) {
-        orig = tok;
         for (int i = 0; i < tok.size(); i++) tok[i].idx = i;
+        orig = tok;
         tok = preprocess_impl(tok);
         adjust_position(tok);
         convert_keywords(tok);

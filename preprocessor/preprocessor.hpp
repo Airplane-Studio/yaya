@@ -101,7 +101,10 @@ private:
                 Token cur = res[ptr];
                 bool success = expand_macro_once(cur, temp);
                 if (success) {
-                    // TODO: position adjusting
+                    if (ptr) {
+                        temp[0].start_col = res[ptr].start_col;
+                        temp[0].end_col = res[ptr].end_col;
+                    }
                     res[ptr] = temp[0];
                     res.insertAll(ptr + 1, temp, 1);
                     hideset[cur.lexeme] = true;

@@ -116,6 +116,12 @@ public:
         }
         return false;
     }
+    int index(const T &other) const {
+        for (int i = 0; i < len; i++) {
+            if (arr[i] == other) return i;
+        }
+        return -1;
+    }
     int size() const { return len; }
     int capacity() const { return capacity_; }
     void output() {

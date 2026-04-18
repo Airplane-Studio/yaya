@@ -7,7 +7,7 @@ private:
     struct MacroInfo {
         Token name;
         DynamicArray<Token> body;
-        bool is_objlike, active;
+        bool is_objlike;
         DynamicArray<Token> params;
         void output() {
             io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike" "]");
@@ -16,9 +16,10 @@ private:
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
+    bool is_sub = false;
     int find_macro(Token &tok) {
         for (int i = macros.size() - 1; i >= 0; i--) {
-            if (macros[i].name == tok && macros[i].active) {
+            if (macros[i].name == tok) {
                 return i;
             }
         }
@@ -57,23 +58,58 @@ private:
         }
 
         if (res.size() != params_size) {
-            io.println("TODO: report error");
+            io.println("TODO: report error: macro arguments count mismatch");
         }
         if (orig[cur_idx].lexeme != ")") {
-            io.println("TODO: report error");
+            io.println("TODO: report error: no `)` to end argument list");
         } else {
             orig[cur_idx].deleted = true;
         }
         return res;
     }
-    bool find_arg(DynamicArray<DynamicArray<Token>> &args, Token arg) {
+    DynamicArray<Token> subst_args(MacroInfo &macro, DynamicArray<DynamicArray<Token>> &args) {
+        // pre-scan
         for (int i = 0; i < args.size(); i++) {
-            if (args[i].size() == 1 && args[i][0] == arg) return true;
+            DynamicArray<Token> orig = args[i];
+            DynamicArray<Token> res;
+            for (int j = 0; j < orig.size(); j++) {
+                DynamicArray<Token> temp;
+                expand_macro_all(orig[j], temp);
+                res.extend(temp);
+            }
+            args[i] = res;
         }
-        return false;
-    }
-    DynamicArray<Token> subst_args(DynamicArray<Token> &body, DynamicArray<DynamicArray<Token>> &args) {
-        return body;
+        // substitution
+        DynamicArray<Token> new_body;
+        bool substituted = false;
+        for (int i = 0; i < macro.body.size(); i++) {
+            int param_idx = macro.params.index(macro.body[i]);
+            if (param_idx != -1) {
+                if (substituted) {
+                    args[param_idx][0].start_col = macro.body[i].start_col;
+                    args[param_idx][0].end_col = macro.body[i].end_col;
+                }
+                new_body.extend(args[param_idx]);
+                substituted = true;
+            }
+            else new_body.append(macro.body[i]);
+        }
+        // post-scan
+        if (!is_sub) {
+            Preprocessor pp;
+            pp.macros = macros;
+            pp.is_sub = true;
+            pp.preprocess(new_body);
+            for (int i = 0; i < new_body.size(); i++) {
+                new_body[i].orig_start_col = new_body[i].start_col;
+                new_body[i].orig_end_col = new_body[i].end_col;
+            }
+            for (int i = 1; i < new_body.size(); i++) {
+                new_body[i].start_col = new_body[i].orig_start_col - new_body[i - 1].orig_end_col;
+                new_body[i].end_col = new_body[i].orig_end_col - new_body[i - 1].orig_end_col;
+            }
+        }
+        return new_body;
     }
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         if (tok.deleted) return false;
@@ -88,7 +124,7 @@ private:
         // for now we only mark them as deleted.
         orig[tok.idx + 1].deleted = true;
         DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size());
-        res.extend(subst_args(macros[idx].body, args));
+        res.extend(subst_args(macros[idx], args));
         return true;
     }
     bool expand_macro_all(Token &tok, DynamicArray<Token> &res) {
@@ -203,7 +239,7 @@ private:
                 // %undef
                 i++;
                 int idx = find_macro(tok[i]);
-                if (idx != -1) macros[idx].active = false;
+                if (idx != -1) macros.remove(idx);
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;

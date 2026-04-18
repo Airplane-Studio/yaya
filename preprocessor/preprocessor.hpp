@@ -10,7 +10,7 @@ private:
         bool is_objlike;
         DynamicArray<Token> params;
         void output() {
-            io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike" "]");
+            io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike", "]");
         }
     };
     DynamicArray<MacroInfo> macros;

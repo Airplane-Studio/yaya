@@ -16,7 +16,6 @@ private:
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
-    bool is_sub = false;
     int find_macro(Token &tok) {
         for (int i = macros.size() - 1; i >= 0; i--) {
             if (macros[i].name == tok) {
@@ -95,21 +94,20 @@ private:
             else new_body.append(macro.body[i]);
         }
         // post-scan
-        if (!is_sub) {
-            Preprocessor pp;
-            pp.macros = macros;
-            pp.is_sub = true;
-            pp.preprocess(new_body);
-            for (int i = 0; i < new_body.size(); i++) {
-                new_body[i].orig_start_col = new_body[i].start_col;
-                new_body[i].orig_end_col = new_body[i].end_col;
-            }
-            for (int i = 1; i < new_body.size(); i++) {
-                new_body[i].start_col = new_body[i].orig_start_col - new_body[i - 1].orig_end_col;
-                new_body[i].end_col = new_body[i].orig_end_col - new_body[i - 1].orig_end_col;
-            }
+        Preprocessor pp;
+        pp.macros = macros;
+        DynamicArray<Token> new_body_copy;
+        for (int i = 0; i < new_body.size(); i++) {
+            new_body_copy.append(new_body[i]);
+            new_body_copy[i].idx = i;
         }
-        return new_body;
+        pp.orig = new_body_copy;
+        new_body_copy = pp.preprocess_impl(new_body_copy);
+        DynamicArray<Token> final_result;
+        for (int i = 0; i < new_body_copy.size(); i++) {
+            if (!new_body_copy[i].deleted) final_result.append(new_body_copy[i]);
+        }
+        return final_result;
     }
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         if (tok.deleted) return false;

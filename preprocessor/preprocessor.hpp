@@ -72,6 +72,14 @@ private:
     DynamicArray<Token> subst_args(MacroInfo &macro, DynamicArray<DynamicArray<Token>> &args) {
         // pre-scan
         for (int i = 0; i < args.size(); i++) {
+            for (int j = args[i].size() - 1; j > 0; j--) {
+                args[i][j].start_col -= args[i][j - 1].end_col;
+                args[i][j].end_col -= args[i][j - 1].end_col;
+            }
+            args[i][0].start_col -= args[i][0].end_col;
+            args[i][0].end_col = 0;
+        }
+        for (int i = 0; i < args.size(); i++) {
             Preprocessor pp;
             pp.macros = macros;
             DynamicArray<Token> orig = args[i];

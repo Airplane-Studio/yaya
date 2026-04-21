@@ -27,7 +27,10 @@ private:
     DynamicArray<Token> read_macro_arg_one(Token &current, int &end_idx) {
         int cur_idx = current.idx;
         DynamicArray<Token> res;
-        while (cur_idx < orig.size() && orig[cur_idx].lexeme != "," && orig[cur_idx].lexeme != ")") {
+        int paren_level = 0;
+        while (cur_idx < orig.size() && (paren_level || (orig[cur_idx].lexeme != "," && orig[cur_idx].lexeme != ")"))) {
+            if (orig[cur_idx].lexeme == "(") paren_level++;
+            else if (orig[cur_idx].lexeme == ")") paren_level--;
             res.append(orig[cur_idx]);
             orig[cur_idx].deleted = true;
             cur_idx++;
@@ -69,13 +72,13 @@ private:
     DynamicArray<Token> subst_args(MacroInfo &macro, DynamicArray<DynamicArray<Token>> &args) {
         // pre-scan
         for (int i = 0; i < args.size(); i++) {
+            Preprocessor pp;
+            pp.macros = macros;
             DynamicArray<Token> orig = args[i];
             DynamicArray<Token> res;
-            for (int j = 0; j < orig.size(); j++) {
-                DynamicArray<Token> temp;
-                expand_macro_all(orig[j], temp);
-                res.extend(temp);
-            }
+            for (int j = 0; j < orig.size(); j++) orig[j].idx = j;
+            pp.orig = orig;
+            res = pp.preprocess_impl(orig);
             args[i] = res;
         }
         // substitution
@@ -118,8 +121,6 @@ private:
             return true;
         }
         if (orig[tok.idx + 1].lexeme != "(") return false;
-        // TODO: parse arguments
-        // for now we only mark them as deleted.
         orig[tok.idx + 1].deleted = true;
         DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size());
         res.extend(subst_args(macros[idx], args));

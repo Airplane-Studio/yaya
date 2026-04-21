@@ -38,7 +38,9 @@ public:
             "symbol", "keyword", "identifier", "literal (string)", "literal (int)",
             "literal (float)", "segment", "error", "eof"
         };
-        io.print("Token[type = ", type2str[type], ", lexeme = \"", lexeme, "\" (at line ", line, " col ", start_col, " - ", end_col, ")]");
+        io.print("Token[type = ", type2str[type], ", lexeme = \"", lexeme, "\" (at line ", line, " col ", start_col, " - ", end_col, ")");
+        if (deleted) io.print(" (deleted)");
+        io.print("]");
     }
 };
 

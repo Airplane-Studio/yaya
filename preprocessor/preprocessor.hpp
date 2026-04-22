@@ -48,9 +48,10 @@ private:
         DynamicArray<DynamicArray<Token>> res;
         int cur_idx = current.idx;
 
-        for (int i = 0; i < params_size - is_va_arg; i++) {
+        for (int i = 0; i < params_size; i++) {
             if (i) {
                 if (orig[cur_idx].lexeme != ",") {
+                    if (is_va_arg) break;
                     io.println("TODO: report error: L54");
                 } else {
                     orig[cur_idx].deleted = true;

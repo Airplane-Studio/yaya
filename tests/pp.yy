@@ -1,5 +1,3 @@
-%define MUL(a, b) a * b
-%define THREE() 1 + 2
-%define FIVE 2 + 3
-# print(THREE());
-print(MUL(THREE(), FIVE));
+%define va_arg_macro(a, b, ...) print(a + b, __VA_ARGS__)
+
+va_arg_macro(1, 3);

@@ -7,7 +7,7 @@ private:
     struct MacroInfo {
         Token name;
         DynamicArray<Token> body;
-        bool is_objlike;
+        bool is_objlike, is_va_arg;
         DynamicArray<Token> params;
         void output() {
             io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike", "]");
@@ -24,11 +24,14 @@ private:
         }
         return -1;
     }
-    DynamicArray<Token> read_macro_arg_one(Token &current, int &end_idx) {
+    DynamicArray<Token> read_macro_arg_one(Token &current, int &end_idx, bool read_rest) {
         int cur_idx = current.idx;
         DynamicArray<Token> res;
         int paren_level = 0;
-        while (cur_idx < orig.size() && (paren_level || (orig[cur_idx].lexeme != "," && orig[cur_idx].lexeme != ")"))) {
+        while (cur_idx < orig.size()) {
+            if (paren_level == 0 && orig[cur_idx].lexeme == ")") break;
+            if (paren_level == 0 && !read_rest && orig[cur_idx].lexeme == ",") break;
+
             if (orig[cur_idx].lexeme == "(") paren_level++;
             else if (orig[cur_idx].lexeme == ")") paren_level--;
             res.append(orig[cur_idx]);
@@ -37,35 +40,39 @@ private:
         }
         end_idx = cur_idx;
         if (cur_idx >= orig.size()) {
-            io.println("TODO: report error");
+            io.println("TODO: report error: L43");
         }
         return res;
     }
-    DynamicArray<DynamicArray<Token>> read_macro_args(Token &current, int params_size) {
+    DynamicArray<DynamicArray<Token>> read_macro_args(Token &current, int params_size, bool is_va_arg) {
         DynamicArray<DynamicArray<Token>> res;
         int cur_idx = current.idx;
 
-        for (int i = 0; i < params_size; i++) {
+        for (int i = 0; i < params_size - is_va_arg; i++) {
             if (i) {
                 if (orig[cur_idx].lexeme != ",") {
-                    io.println("TODO: report error");
+                    io.println("TODO: report error: L54");
                 } else {
                     orig[cur_idx].deleted = true;
                     cur_idx++;
                 }
             }
-            DynamicArray<Token> single = read_macro_arg_one(orig[cur_idx], cur_idx);
-            if (single.size()) res.append(single);
-            else break;
+            DynamicArray<Token> single = read_macro_arg_one(orig[cur_idx], cur_idx, is_va_arg && i == params_size - 1);
+            res.append(single);
         }
 
-        if (res.size() != params_size) {
-            io.println("TODO: report error: macro arguments count mismatch");
-        }
         if (orig[cur_idx].lexeme != ")") {
             io.println("TODO: report error: no `)` to end argument list");
         } else {
             orig[cur_idx].deleted = true;
+        }
+        if (res.size() != params_size) {
+            if (!is_va_arg) io.println("TODO: report error: macro arguments count mismatch");
+            else {
+                // pack nothing into __VA_ARGS__
+                res.append(DynamicArray<Token>());
+                // TODO: adjust position when __VA_ARGS__ is empty
+            }
         }
         return res;
     }
@@ -130,7 +137,7 @@ private:
         }
         if (orig[tok.idx + 1].lexeme != "(") return false;
         orig[tok.idx + 1].deleted = true;
-        DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size());
+        DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size(), macros[idx].is_va_arg);
         res.extend(subst_args(macros[idx], args));
         return true;
     }
@@ -206,6 +213,7 @@ private:
                 i++;
                 MacroInfo m;
                 m.name = tok[i];
+                m.is_va_arg = false;
                 int line = tok[i].line;
                 bool is_objlike = true;
                 DynamicArray<Token> params;
@@ -219,7 +227,16 @@ private:
                                 io.println("TODO: report error");
                             } else i++;
                         }
-                        if (tok[i].type != TT_IDENTIFIER) {
+                        if (tok[i].lexeme == "...") {
+                            if (tok[i + 1].lexeme != ")") {
+                                io.println("TODO: report error: expected `)` after `...`");
+                            }
+                            Token new_tok = tok[i];
+                            new_tok.type = TT_IDENTIFIER;
+                            new_tok.lexeme = "__VA_ARGS__";
+                            params.append(new_tok);
+                            m.is_va_arg = true;
+                        } else if (tok[i].type != TT_IDENTIFIER) {
                             io.println("TODO: report error");
                         } else {
                             params.append(tok[i]);

@@ -51,7 +51,7 @@ private:
         for (int i = 0; i < params_size; i++) {
             if (i) {
                 if (orig[cur_idx].lexeme != ",") {
-                    if (is_va_arg) break;
+                    if (is_va_arg && i == params_size - 1 && orig[cur_idx].lexeme == ")") break;
                     io.println("TODO: report error: L54");
                 } else {
                     orig[cur_idx].deleted = true;
@@ -102,6 +102,26 @@ private:
         bool substituted = false;
         for (int i = 0; i < macro.body.size(); i++) {
             int param_idx = macro.params.index(macro.body[i]);
+            if (macro.body[i].lexeme == "$") {
+                i++;
+                param_idx = macro.params.index(macro.body[i]);
+                if (param_idx == -1) {
+                    io.println("TODO: report error: no macro arg after `$`");
+                }
+                DynamicArray<Token> arg = args[param_idx];
+                Token tok;
+                tok.type = TT_STRING_LITERAL;
+                tok.lexeme = "\"";
+                for (int i = 0; i < arg.size(); i++) {
+                    tok.lexeme += arg[i].lexeme;
+                    for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) tok.lexeme += " ";
+                }
+                tok.lexeme += "\"";
+                tok.start_col = arg[0].start_col;
+                tok.end_col = arg[arg.size() - 1].end_col + 2;
+                new_body.append(tok);
+                continue;
+            }
             if (param_idx != -1) {
                 if (substituted) {
                     args[param_idx][0].start_col = macro.body[i].start_col;

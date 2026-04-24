@@ -29,9 +29,9 @@ private:
     bool isAtEnd() {
         return current >= src.size();
     }
-    UTF8Char advance() {
+    UTF8Char advance(bool in_line_feed = false) {
         UTF8Char res = src[current];
-        if (res == '\n') {
+        if (!in_line_feed && res == '\n') {
             line++;
             col = 0;
             tok_at_line_beg = true;
@@ -169,11 +169,16 @@ private:
         }
 
         UTF8Char c = advance();
+        int cur_col = col;
         if (c == '#') {
             while (!isAtEnd() && c != '\n') {
                 advance();
                 c = peek();
             }
+        }
+        else if (c == '\\' && (peek() == '\r' || peek() == '\n')) {
+            while (peek() == '\r' || peek() == '\n') advance(true);
+            col = cur_col - 1;
         }
         else if (UTF8String("()[]{}").contains(c)) result.append(tokAtCurrent(TT_SYMBOL));
         else if (c.isDigit() || (c == '.' && peek().isDigit())) makeNumber(c); // note that .5 will be lex into "." and "5".

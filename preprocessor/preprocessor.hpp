@@ -81,12 +81,19 @@ private:
         // pre-scan
         for (int i = 0; i < args.size(); i++) {
             for (int j = args[i].size() - 1; j > 0; j--) {
-                args[i][j].start_col -= args[i][j - 1].end_col;
-                args[i][j].end_col -= args[i][j - 1].end_col;
+                if (!args[i][j].replaced) {
+                    args[i][j].start_col -= args[i][j - 1].end_col;
+                    args[i][j].end_col -= args[i][j - 1].end_col;
+                    args[i][j].replaced = true;
+                }
             }
-            args[i][0].start_col -= args[i][0].end_col;
-            args[i][0].end_col = 0;
+            if (!args[i][0].replaced) {
+                args[i][0].start_col -= args[i][0].end_col;
+                args[i][0].end_col = 0;
+                args[i][0].replaced = true;
+            }
         }
+        DynamicArray<DynamicArray<Token>> orig_args = args;
         for (int i = 0; i < args.size(); i++) {
             Preprocessor pp;
             pp.macros = macros;
@@ -95,7 +102,11 @@ private:
             for (int j = 0; j < orig.size(); j++) orig[j].idx = j;
             pp.orig = orig;
             res = pp.preprocess_impl(orig);
-            args[i] = res;
+            DynamicArray<Token> res2;
+            for (int j = 0; j < res.size(); j++) {
+                if (!res[j].deleted) res2.append(res[j]);
+            }
+            args[i] = res2;
         }
         // substitution
         DynamicArray<Token> new_body;
@@ -108,18 +119,49 @@ private:
                 if (param_idx == -1) {
                     io.println("TODO: report error: no macro arg after `$`");
                 }
-                DynamicArray<Token> arg = args[param_idx];
+                DynamicArray<Token> arg = orig_args[param_idx];
                 Token tok;
                 tok.type = TT_STRING_LITERAL;
                 tok.lexeme = "\"";
                 for (int i = 0; i < arg.size(); i++) {
                     tok.lexeme += arg[i].lexeme;
-                    for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) tok.lexeme += " ";
+                    if (i + 1 < arg.size() && arg[i + 1].start_col != 1) tok.lexeme += " ";
                 }
                 tok.lexeme += "\"";
                 tok.start_col = arg[0].start_col;
                 tok.end_col = arg[arg.size() - 1].end_col + 2;
                 new_body.append(tok);
+                continue;
+            }
+            if (macro.body[i].lexeme == "$$") {
+                i++;
+                param_idx = macro.params.index(macro.body[i]);
+                if (param_idx == -1) {
+                    io.println("TODO: report error: no macro arg after `$$`");
+                }
+                DynamicArray<Token> arg = orig_args[param_idx];
+                if (new_body.size()) {
+                    Token last = new_body[new_body.size() - 1];
+                    UTF8String new_lexeme = last.lexeme;
+                    if (!arg.size()) {
+                        continue;
+                    }
+                    for (int i = 0; i < arg.size(); i++) {
+                        new_lexeme += arg[i].lexeme;
+                        for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) new_lexeme += " ";
+                    }
+                    DynamicArray<Token> new_toks = Lexer(new_lexeme).tokenize();
+                    for (int i = new_toks.size() - 1; i > 0; i--) {
+                        new_toks[i].start_col -= new_toks[i - 1].end_col;
+                        new_toks[i].end_col -= new_toks[i - 1].end_col;
+                    }
+                    new_toks[0].start_col = last.start_col;
+                    new_toks[0].end_col = new_toks[0].start_col + new_toks[0].lexeme.size() - 1;
+                    new_body.remove(new_body.size() - 1);
+                    new_body.extend(new_toks);
+                } else {
+                    new_body.extend(arg);
+                }
                 continue;
             }
             if (param_idx != -1) {
@@ -156,7 +198,7 @@ private:
             res.extend(macros[idx].body);
             return true;
         }
-        if (orig[tok.idx + 1].lexeme != "(") return false;
+        if (tok.idx + 1 >= orig.size() || orig[tok.idx + 1].lexeme != "(") return false;
         orig[tok.idx + 1].deleted = true;
         DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size(), macros[idx].is_va_arg);
         res.extend(subst_args(macros[idx], args));
@@ -305,7 +347,7 @@ private:
         for (int lineno = 0; lineno < lines.size(); lineno++) {
             if (lines[lineno][0].replaced) {
                 lines[lineno][0].start_col = lines[lineno][0].orig_start_col;
-                lines[lineno][0].end_col = lines[lineno][0].orig_end_col;
+                lines[lineno][0].end_col = lines[lineno][0].start_col + lines[lineno][0].lexeme.size() - 1;
             }
             for (int i = 1; i < lines[lineno].size(); i++) {
                 if (lines[lineno][i].replaced && lines[lineno][i].start_col > 0) continue;

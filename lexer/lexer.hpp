@@ -6,41 +6,48 @@
 
 class Lexer {
 private:
-    char *start;
-    char *current;
+    int start, current;
     int line, col;
     bool tok_at_line_beg;
+    UTF8String src;
     DynamicArray<Token> result;
+    UTF8String srcSlice(int start, int len) {
+        UTF8String res;
+        for (int i = 0; i < len; i++) {
+            res += src[i + start];
+        }
+        return res;
+    }
     Token tokAtCurrent(TokenType type, int start_col = -1) {
         if (start_col == -1) start_col = col;
-        return Token(type, start, current - start, tok_at_line_beg ? ((tok_at_line_beg = false) || true) : false, line, start_col);
+        return Token(type, srcSlice(start, current - start), tok_at_line_beg ? ((tok_at_line_beg = false) || true) : false, line, start_col);
     }
     Token errTok(const char *message, int start_col = -1) {
         if (start_col == -1) start_col = col;
-        return Token(TT_ERROR, message, strlen(message), line, start_col, start_col);
+        return Token(TT_ERROR, message, line, start_col, start_col);
     }
     bool isAtEnd() {
-        return !current || !*current;
+        return current >= src.size();
     }
     UTF8Char advance() {
-        UTF8Char res = current;
+        UTF8Char res = src[current];
         if (res == '\n') {
             line++;
             col = 0;
             tok_at_line_beg = true;
         } else col++;
-        current = UTF8Util::next_pos(current);
+        current++;
         return res;
     }
     UTF8Char peek() {
-        if (!isAtEnd()) return UTF8Char(current);
+        if (!isAtEnd()) return src[current];
         return UTF8Char();
     }
     UTF8Char peekNext() {
-        return UTF8Char(UTF8Util::next_pos(current));
+        return current + 1 < src.size() ? src[current + 1] : UTF8Char();
     }
     UTF8Char peekNextNext() {
-        return UTF8Char(UTF8Util::next_pos(UTF8Util::next_pos(current)));
+        return current + 2 < src.size() ? src[current + 2] : UTF8Char();
     }
     void makeSymbol() {
         int start_col = col;
@@ -129,6 +136,7 @@ private:
                     // enter decimal part
                     ret_type = TT_FLOAT_LITERAL;
                     advance();
+                    c = peek();
                     while (!isAtEnd() && c.isDigit()) {
                         advance();
                         c = peek();
@@ -180,7 +188,7 @@ private:
         }
     }
 public:
-    Lexer(char *src) : start(src), current(src), line(1), col(0), tok_at_line_beg(true) {
+    Lexer(UTF8String src) : src(src), start(0), current(0), line(1), col(0), tok_at_line_beg(true) {
     }
     DynamicArray<Token> tokenize() {
         do {

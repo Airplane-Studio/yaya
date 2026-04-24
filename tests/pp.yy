@@ -1,3 +1,6 @@
-%define f(x) $x
+%define PP_CONCAT_IMPL(a, b) a$$b
+%define PP_CONCAT(a, b) PP_CONCAT_IMPL(a, b)
+%define bar() baz
 
-print(f(Hello World; this is dashabi));
+PP_CONCAT(foo, bar())
+PP_CONCAT_IMPL(foo, bar())

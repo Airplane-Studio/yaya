@@ -195,11 +195,13 @@ private:
     }
 
     TreeNode<K, V> *minimum(TreeNode<K, V> *node) {
+        if (!node) return nullptr;
         while (node->left) node = node->left;
         return node;
     }
 
     TreeNode<K, V> *maximum(TreeNode<K, V> *node) {
+        if (!node) return nullptr;
         while (node->right) node = node->right;
         return node;
     }

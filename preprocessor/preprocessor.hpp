@@ -1,21 +1,57 @@
 #pragma once
 
 #include "lexer.h"
+#include "util.h"
 
 class Preprocessor {
 private:
+    enum MacroType {
+        OBJLIKE,
+        FUNCLIKE,
+        MULTILINE
+    };
     struct MacroInfo {
         Token name;
         DynamicArray<Token> body;
-        bool is_objlike, is_va_arg;
+        MacroType type;
+        bool is_va_arg;
+        bool in_expansion;
         DynamicArray<Token> params;
         void output() {
-            io.print("Macro[name = ", name, ", body = ", body, ", type = ", is_objlike ? "objlike" : "funclike", "]");
+            const char *type2str[] = {"objlike", "funclike", "multiline"};
+            io.print("Macro[name = ", name, ", body = ", body, ", type = ", type2str[type], "]");
         }
     };
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
+    Preprocessor *parent = nullptr;
+    void report_error(int idx, UTF8String err_info) {
+        Preprocessor *root = this;
+        while (root->parent) root = root->parent;
+        DynamicArray<Token> &orig = root->orig;
+        Token tok = orig[idx];
+        int lineno = orig[idx].line;
+        io.print(orig[idx].src_file, ":", lineno, ": error: ", err_info);
+        DynamicArray<Token> line;
+        int cur_idx = idx;
+        while (cur_idx) {
+            if (orig[cur_idx].line != lineno) break;
+            cur_idx--;
+        }
+        if (cur_idx) cur_idx++;
+        while (cur_idx < orig.size()) {
+            if (orig[cur_idx].line != lineno) break;
+            line.append(orig[cur_idx++]);
+        }
+        TokenPrettifier::print_tokens(line);
+        for (int i = 0; i < TokenPrettifier::num_len(lineno) + 3; i++) io.print(' ');
+        for (int i = 0; i < tok.start_col - 1; i++) io.print(' ');
+        io.print("^");
+        for (int i = tok.start_col + 1; i <= tok.end_col; i++) io.print("~");
+        io.println();
+        yaya_exit(1);
+    }
     int find_macro(Token &tok) {
         for (int i = macros.size() - 1; i >= 0; i--) {
             if (macros[i].name == tok) {
@@ -40,7 +76,7 @@ private:
         }
         end_idx = cur_idx;
         if (cur_idx >= orig.size()) {
-            io.println("TODO: report error: L43");
+            report_error(current.idx, "premature exhaustion of macro");
         }
         return res;
     }
@@ -52,7 +88,7 @@ private:
             if (i) {
                 if (orig[cur_idx].lexeme != ",") {
                     if (is_va_arg && i == params_size - 1 && orig[cur_idx].lexeme == ")") break;
-                    io.println("TODO: report error: L54");
+                    report_error(cur_idx, "Expected `,`");
                 } else {
                     orig[cur_idx].deleted = true;
                     cur_idx++;
@@ -63,12 +99,14 @@ private:
         }
 
         if (orig[cur_idx].lexeme != ")") {
-            io.println("TODO: report error: no `)` to end argument list");
+            report_error(cur_idx, "expected `)`");
         } else {
             orig[cur_idx].deleted = true;
         }
         if (res.size() != params_size) {
-            if (!is_va_arg) io.println("TODO: report error: macro arguments count mismatch");
+            if (!is_va_arg) {
+                report_error(cur_idx, "macro arguments mismatch");
+            }
             else {
                 // pack nothing into __VA_ARGS__
                 res.append(DynamicArray<Token>());
@@ -97,6 +135,7 @@ private:
         for (int i = 0; i < args.size(); i++) {
             Preprocessor pp;
             pp.macros = macros;
+            pp.parent = this;
             DynamicArray<Token> orig = args[i];
             DynamicArray<Token> res;
             for (int j = 0; j < orig.size(); j++) orig[j].idx = j;
@@ -117,7 +156,7 @@ private:
                 i++;
                 param_idx = macro.params.index(macro.body[i]);
                 if (param_idx == -1) {
-                    io.println("TODO: report error: no macro arg after `$`");
+                    report_error(macro.body[i].idx, "expected macro arg after `$`");
                 }
                 DynamicArray<Token> arg = orig_args[param_idx];
                 Token tok;
@@ -137,7 +176,7 @@ private:
                 i++;
                 param_idx = macro.params.index(macro.body[i]);
                 if (param_idx == -1) {
-                    io.println("TODO: report error: no macro arg after `$$`");
+                    report_error(macro.body[i].idx, "expected macro arg after `$$`");
                 }
                 DynamicArray<Token> arg = orig_args[param_idx];
                 if (new_body.size()) {
@@ -150,7 +189,7 @@ private:
                         new_lexeme += arg[i].lexeme;
                         for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) new_lexeme += " ";
                     }
-                    DynamicArray<Token> new_toks = Lexer(new_lexeme).tokenize();
+                    DynamicArray<Token> new_toks = Lexer(arg[0].src_file, new_lexeme).tokenize();
                     for (int i = new_toks.size() - 1; i > 0; i--) {
                         new_toks[i].start_col -= new_toks[i - 1].end_col;
                         new_toks[i].end_col -= new_toks[i - 1].end_col;
@@ -177,6 +216,7 @@ private:
         // post-scan
         Preprocessor pp;
         pp.macros = macros;
+        pp.parent = this;
         DynamicArray<Token> new_body_copy;
         for (int i = 0; i < new_body.size(); i++) {
             new_body_copy.append(new_body[i]);
@@ -194,14 +234,16 @@ private:
         if (tok.deleted) return false;
         int idx = find_macro(tok);
         if (idx == -1) return false;
-        if (macros[idx].is_objlike) {
+        if (macros[idx].type == OBJLIKE) {
             res.extend(macros[idx].body);
             return true;
         }
         if (tok.idx + 1 >= orig.size() || orig[tok.idx + 1].lexeme != "(") return false;
+        macros[idx].in_expansion = true;
         orig[tok.idx + 1].deleted = true;
         DynamicArray<DynamicArray<Token>> args = read_macro_args(orig[tok.idx + 2], macros[idx].params.size(), macros[idx].is_va_arg);
         res.extend(subst_args(macros[idx], args));
+        macros[idx].in_expansion = false;
         return true;
     }
     bool expand_macro_all(Token &tok, DynamicArray<Token> &res) {
@@ -212,6 +254,8 @@ private:
             while (ptr < res.size() && !hideset.count(res[ptr].lexeme) && find_macro(res[ptr]) != -1) {
                 DynamicArray<Token> temp;
                 Token cur = res[ptr];
+                int idx = find_macro(cur);
+                if (idx != -1 && macros[idx].in_expansion) break;
                 bool success = expand_macro_once(cur, temp);
                 if (success) {
                     if (ptr) {
@@ -287,12 +331,12 @@ private:
                     while (tok[i].lexeme != ")") {
                         if (params.size()) {
                             if (tok[i].lexeme != ",") {
-                                io.println("TODO: report error");
+                                report_error(i, "expected `,`");
                             } else i++;
                         }
                         if (tok[i].lexeme == "...") {
                             if (tok[i + 1].lexeme != ")") {
-                                io.println("TODO: report error: expected `)` after `...`");
+                                report_error(i + 1, "expected `)` after `...`");
                             }
                             Token new_tok = tok[i];
                             new_tok.type = TT_IDENTIFIER;
@@ -300,7 +344,7 @@ private:
                             params.append(new_tok);
                             m.is_va_arg = true;
                         } else if (tok[i].type != TT_IDENTIFIER) {
-                            io.println("TODO: report error");
+                            report_error(i, "macro arguments must be identifier");
                         } else {
                             params.append(tok[i]);
                         }
@@ -319,9 +363,12 @@ private:
                 macro_body[0].start_col -= macro_body[0].end_col;
                 macro_body[0].end_col = 0;
                 m.body = macro_body;
-                m.is_objlike = is_objlike;
+                m.type = is_objlike ? OBJLIKE : FUNCLIKE;
                 m.params = params;
+                m.in_expansion = false;
                 macros.append(m);
+            } else if (tok[i].lexeme == "macro") {
+                // %macro
             } else if (tok[i].lexeme == "undef") {
                 // %undef
                 i++;

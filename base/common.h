@@ -9,6 +9,7 @@
 #define yaya_printf printf
 #define yaya_strcmp strcmp
 #define yaya_strcpy strcpy
+#define yaya_exit exit
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 

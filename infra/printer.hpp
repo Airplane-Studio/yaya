@@ -30,6 +30,12 @@ public:
         arg.output();
     }
     template <typename T>
+    void print(T *arg) {
+        yaya_printf(" (pointer to ");
+        arg->output();
+        yaya_printf(")");
+    }
+    template <typename T>
     void print(T &&arg) {
         arg.output();
     }

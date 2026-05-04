@@ -1,11 +1,40 @@
-%define PP_CONCAT_IMPL(a, b) a$$b
-%define PP_CONCAT(a, b) PP_CONCAT_IMPL(a, b)
-%define bar() baz
+%macro mov 2 
+    %1 = %2;
+%endmacro
 
-%define dbl(x) M10(x) * 2
-%define M10(x) dbl(x) + 3
+%define syscall pseudo_syscall();
 
-dbl(2)
+%macro equ 1
+    = hello.size();
+%endmacro
 
-PP_CONCAT(foo, bar())
-PP_CONCAT_IMPL(foo, bar())
+%define :
+
+%macro db 2
+    = %1;
+%endmacro
+
+func pseudo_syscall() {
+    if (rax == 60) {
+        exit();
+    } else if (rax == 1) {
+        print(rsi);
+    }
+}
+
+var rax, rdi, rsi, rdx;
+
+global _start
+_start:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, hello
+    mov rdx, hello_len
+    syscall
+
+    mov rax, 60
+    mov rdi, 0
+    syscall
+
+hello: db "Hello, World!", 0
+hello_len equ $ - hello

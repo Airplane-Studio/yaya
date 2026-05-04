@@ -16,6 +16,9 @@ public:
     void print(uint32_t i) {
         yaya_printf("%d", i);
     }
+    void print(uint64_t i) {
+        yaya_printf("%lu", i);
+    }
     void print(const char *str) {
         yaya_printf("%s", str);
     }
@@ -32,7 +35,8 @@ public:
     template <typename T>
     void print(T *arg) {
         yaya_printf(" (pointer to ");
-        arg->output();
+        if (arg) arg->output();
+        else yaya_printf("null");
         yaya_printf(")");
     }
     template <typename T>

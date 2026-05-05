@@ -5,3 +5,4 @@
 #include "pair.hpp"
 #include "tree_map.hpp"
 #include "utf8.hpp"
+#include "integer.hpp"

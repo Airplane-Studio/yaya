@@ -13,6 +13,9 @@ public:
     void print(int i) {
         yaya_printf("%d", i);
     }
+    void print(long long i) {
+        yaya_printf("%lld", i);
+    }
     void print(uint32_t i) {
         yaya_printf("%d", i);
     }

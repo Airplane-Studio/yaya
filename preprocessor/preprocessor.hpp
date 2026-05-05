@@ -115,6 +115,9 @@ private:
                 macro_body[0].end_col = 0;
                 m.body = macro_body;
                 macros.append(m);
+            } else if (tok[i].lexeme == "undef") {
+                int idx = find_macro(tok[i]);
+                if (idx != -1) macros.remove(idx);
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;

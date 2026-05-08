@@ -28,6 +28,11 @@ public:
         else if (!right) return left->height;
         else return left->height - right->height;
     }
+
+    ~TreeNode() {
+        delete left;
+        delete right;
+    }
 };
 
 template <typename K, typename V>
@@ -246,6 +251,9 @@ private:
         }
     };
 public:
+    ~TreeMap() {
+        delete root;
+    }
     Inter operator[](const K &key) {
         return Inter(this, key);
     }

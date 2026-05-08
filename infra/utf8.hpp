@@ -192,3 +192,8 @@ public:
     UTF8Char *begin() { return arr.begin(); }
     UTF8Char *end() { return arr.end(); }
 };
+
+
+UTF8String operator+(const char *str, UTF8String &str2) {
+    return UTF8String(str) + str2;
+}

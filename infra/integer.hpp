@@ -74,7 +74,7 @@ private:
             temp /= 2;
         }
 
-        return Pair(sign == other.sign ? quot : quot - 1, sign == other.sign ? a : b - a);
+        return Pair(sign == other.sign ? quot : --quot, sign == other.sign ? a : b - a);
     }
     void abs_inc() {
         decs.append(0);
@@ -320,15 +320,16 @@ public:
         return a;
     }
 
-    Integer absolute() {
+    Integer absolute() const {
         Integer res = *this;
-        if (res.sign < 0) res.sign = 0 - sign;
+        if (res.sign < 0) res.sign = 0 - res.sign;
         return res;
     }
 
-    bool is_zero() { return sign == 0; }
+    bool is_zero() const { return sign == 0; }
+    operator bool() const { return is_zero(); }
 
-    int c_int() {
+    int c_int() const {
         int res = 0;
         for (int i = decs.size() - 1; i >= 0; i--) {
             res = res * 10 + decs[i];
@@ -336,11 +337,25 @@ public:
         return res;
     }
 
+    static Integer gcd(Integer a, Integer b) {
+        if (b.sign == 0) return a;
+        return gcd(b, a % b);
+    }
+
     static Integer pow(Integer base, Integer power) {
+        if (power.sign < 0) return 0;
+        if (power.sign == 0) return 1;
         if (base.decs.size() == 1 && base.decs[0] == 1) {
             return power.decs[0] % 2 && base.sign == -1 ? -base : base;
         }
         if (base.sign == 0) return base;
+        if (base == 10) {
+            Integer res;
+            res.sign = 1;
+            while (power--) res.decs.append(0);
+            res.decs.append(1);
+            return res;
+        }
 
         Integer ans = 1;
         while (power.sign != 0) {
@@ -350,6 +365,21 @@ public:
         }
         return ans;
     }
+
+    UTF8String tostring() {
+        UTF8String res;
+        if (sign == 0) {
+            res = "0";
+            return res;
+        }
+        if (sign < 0) res += "-";
+        for (int i = decs.size() - 1; i >= 0; i--) {
+            res += decs[i] + '0';
+        }
+        return res;
+    }
+
+    int sgn() const { return sign; }
 
     void output() {
         if (sign == 0) {

@@ -24,14 +24,14 @@ private:
         while (decs.size() && decs[decs.size() - 1] == 0) decs.remove(decs.size() - 1);
         if (!decs.size()) sign = 0;
     }
-    int cmp_absolute(Integer &other) {
+    int cmp_absolute(const Integer &other) const {
         if (decs.size() != other.decs.size()) return decs.size() - other.decs.size();
         for (int i = decs.size() - 1; i >= 0; i--) {
             if (decs[i] != other.decs[i]) return decs[i] - other.decs[i];
         }
         return 0;
     }
-    int compare(Integer &other) {
+    int compare(const Integer &other) const {
         if (sign != other.sign) return sign - other.sign;
         return sign * cmp_absolute(other);
     }
@@ -104,19 +104,6 @@ public:
             }
             remove_leading_zeros();
         }        
-    }
-    Integer(int num) : Integer((long long) num) {}
-    Integer(const char *str) {
-        decs.clear();
-        int len = strlen(str);
-        if (is_int(str, len)) {
-            for (int i = len - 1; i >= (str[0] == '+' || str[0] == '-'); i--) {
-                decs.append(str[i] - '0');
-            }
-            if (str[0] == '-') sign = -1;
-            else sign = 1;
-            remove_leading_zeros();
-        }
     }
     Integer(UTF8String &str) {
         decs.clear();
@@ -204,7 +191,7 @@ public:
     Integer operator*(int other) {
         // high * low
         if (sign == 0) return *this;
-        if (other == 0) return Integer();
+        if (other == 0) return Integer(0);
         Integer res;
         if (other < 0) other = 0 - other, res.sign = 0 - sign;
         else res.sign = sign;
@@ -281,12 +268,12 @@ public:
         return (*this) = (*this) % other;
     }
 
-    bool operator>(Integer &other) { return compare(other) > 0; }
-    bool operator<(Integer &other) { return compare(other) < 0; }
-    bool operator>=(Integer &other) { return compare(other) >= 0; }
-    bool operator<=(Integer &other) { return compare(other) <= 0; }
-    bool operator==(Integer &other) { return compare(other) == 0; }
-    bool operator!=(Integer &other) { return compare(other) != 0; }
+    bool operator>(const Integer &other) const { return compare(other) > 0; }
+    bool operator<(const Integer &other) const { return compare(other) < 0; }
+    bool operator>=(const Integer &other) const { return compare(other) >= 0; }
+    bool operator<=(const Integer &other) const { return compare(other) <= 0; }
+    bool operator==(const Integer &other) const { return compare(other) == 0; }
+    bool operator!=(const Integer &other) const { return compare(other) != 0; }
 
     Integer &operator++() {
         if (sign > 0) abs_inc();
@@ -327,7 +314,7 @@ public:
     }
 
     bool is_zero() const { return sign == 0; }
-    operator bool() const { return is_zero(); }
+    explicit operator bool() const { return is_zero(); }
 
     int c_int() const {
         int res = 0;
@@ -349,14 +336,6 @@ public:
             return power.decs[0] % 2 && base.sign == -1 ? -base : base;
         }
         if (base.sign == 0) return base;
-        if (base == 10) {
-            Integer res;
-            res.sign = 1;
-            while (power--) res.decs.append(0);
-            res.decs.append(1);
-            return res;
-        }
-
         Integer ans = 1;
         while (power.sign != 0) {
             if (power.decs[0] % 2) ans *= base;

@@ -16,7 +16,46 @@ private:
     }
 public:
     Decimal(const UTF8String &string) {
-        
+        numerator = 0;
+        denominator = 1;
+        if (string.size() == 0 || (string.size() == 1 && (string[0] == '+' || string[0] == '-')));
+        else {
+            int idx = 0;
+            if (string[0] == '+' || string[0] == '-') idx++;
+            if (idx < string.size() && (string[idx] >= '0' && string[idx] <= '9')) {
+                while (idx < string.size() && (string[idx] >= '0' && string[idx] <= '9')) {
+                    numerator = numerator * 10 + (string[idx] - '0');
+                    idx++;
+                }
+            }
+            if (idx < string.size() && string[idx] == '.') {
+                // .xxexx
+                int dec_len = 0;
+                idx++;
+                while (idx < string.size() && string[idx] >= '0' && string[idx] <= '9') {
+                    numerator = numerator * 10 + (string[idx] - '0');
+                    idx++;
+                    dec_len++;
+                }
+                denominator = Integer::pow(10, dec_len);
+            }
+            if (idx < string.size() && string[idx] == 'e') {
+                idx++;
+                Integer exp_part = 0;
+                int exp_sign = 1;
+                if (idx < string.size() && (string[idx] == '+' || string[idx] == '-')) {
+                    exp_sign = 2 * (string[idx] == '+') - 1;
+                    idx++;
+                }
+                while (idx < string.size() && string[idx] >= '0' && string[idx] <= '9') {
+                    exp_part = exp_part * 10 + (string[idx] - '0');
+                    idx++;
+                }
+                if (exp_sign == 1) numerator *= Integer::pow(10, exp_part);
+                else denominator *= Integer::pow(10, exp_part);
+            }
+        }
+        reduce();
     }
     Decimal(const Integer &numerator, const Integer &denominator = 1) {
         this->numerator = numerator.absolute();

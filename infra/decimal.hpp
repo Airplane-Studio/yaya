@@ -18,10 +18,14 @@ public:
     Decimal(const UTF8String &string) {
         numerator = 0;
         denominator = 1;
+        sign = 1;
         if (string.size() == 0 || (string.size() == 1 && (string[0] == '+' || string[0] == '-')));
         else {
             int idx = 0;
-            if (string[0] == '+' || string[0] == '-') idx++;
+            if (string[0] == '+' || string[0] == '-') {
+                sign = 2 * (string[0] == '+') - 1;
+                idx++;
+            }
             if (idx < string.size() && (string[idx] >= '0' && string[idx] <= '9')) {
                 while (idx < string.size() && (string[idx] >= '0' && string[idx] <= '9')) {
                     numerator = numerator * 10 + (string[idx] - '0');
@@ -62,6 +66,72 @@ public:
         this->denominator = denominator.absolute();
         this->sign = numerator.sgn() * denominator.sgn();
         reduce();
+    }
+
+    Decimal operator+(Decimal &other) {
+        return Decimal(numerator * other.denominator + denominator * other.numerator, denominator * other.denominator * sign);
+    }
+    Decimal operator-(Decimal &other) {
+        return Decimal(numerator * other.denominator - denominator * other.numerator, denominator * other.denominator * sign);
+    }
+    Decimal operator*(const Decimal &other) const {
+        return Decimal(numerator * other.numerator, denominator * other.denominator * sign);
+    }
+    Decimal operator/(Decimal &other) {
+        return Decimal(numerator * other.denominator, denominator * other.numerator * sign);
+    }
+
+    bool exact_eq(const Decimal &other) const {
+        return numerator == other.numerator && denominator == other.denominator && sign == other.sign;
+    }
+    bool exact_lt(const Decimal &other) const {
+        return numerator * other.denominator < denominator * other.numerator;
+    }
+    bool exact_gt(const Decimal &other) const {
+        return numerator * other.denominator > denominator * other.numerator;
+    }
+
+    bool operator==(const Decimal &other) const {
+        Decimal d = (other - *this).absolute();
+        Decimal prec = Decimal(1, Integer::pow(10, max_prec));
+        return d.exact_lt(prec);
+    }
+    bool operator!=(const Decimal &other) const {
+        Decimal d = (other - *this).absolute();
+        Decimal prec = Decimal(1, Integer::pow(10, max_prec));
+        return !d.exact_lt(prec);
+    }
+    bool operator<(const Decimal &other) const {
+        Decimal d = other - *this;
+        Decimal prec = Decimal(1, Integer::pow(10, max_prec));
+        return d.exact_gt(prec);
+    }
+    bool operator>(const Decimal &other) const {
+        Decimal d = *this - other;
+        Decimal prec = Decimal(1, Integer::pow(10, max_prec));
+        return d.exact_gt(prec);
+    }
+    bool operator<=(const Decimal &other) const {
+        return *this < other || *this == other;
+    }
+    bool operator>=(const Decimal &other) const {
+        return *this > other || *this == other;
+    }
+
+    Decimal round(int prec) {
+        Decimal d = *this;
+        d.set_precision(prec);
+        return d;
+    }
+
+    Decimal absolute() {
+        Decimal d = *this;
+        d.sign = d.sign > 0 ? d.sign : 0 - d.sign;
+        return d;
+    }
+
+    Pair<Integer, Integer> as_integer_ratio() {
+        return Pair(numerator, denominator);
     }
 
     UTF8String tostring() {

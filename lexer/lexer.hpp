@@ -33,6 +33,9 @@ private:
     UTF8Char advance(bool in_line_feed = false) {
         UTF8Char res = src[current];
         if (!in_line_feed && res == '\n') {
+            Token newline = tokAtCurrent(TT_NEWLINE);
+            newline.lexeme = "";
+            result.append(newline);
             line++;
             col = 0;
             tok_at_line_beg = true;

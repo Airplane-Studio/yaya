@@ -12,6 +12,7 @@ enum TokenType {
     TT_FLOAT_LITERAL,
     TT_SEGMENT,
     TT_ERROR,
+    TT_NEWLINE,
     TT_EOF
 };
 
@@ -37,7 +38,7 @@ public:
     void output() {
         static const char *type2str[] = {
             "symbol", "keyword", "identifier", "literal (string)", "literal (int)",
-            "literal (float)", "segment", "error", "eof"
+            "literal (float)", "segment", "error", "newline", "eof"
         };
         io.print("Token[type = ", type2str[type], ", lexeme = \"", lexeme, "\" (at line ", line, " col ", start_col, " - ", end_col, ")");
         if (deleted) io.print(" (deleted)");

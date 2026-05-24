@@ -36,7 +36,7 @@ private:
         return sign * cmp_absolute(other);
     }
     Pair<Integer, Integer> divmod(int other) {
-        if (other == 0) return Pair(Integer(0), *this);
+        if (other == 0) return Pair<Integer, Integer>(Integer(0), *this);
         Integer res = *this;
         if (other < 0) res.sign = 0 - sign, other = 0 - other;
         long long r = 0;
@@ -47,13 +47,13 @@ private:
         }
         res.remove_leading_zeros();
         if (res.sign < 0) r = other - r, res--;
-        return Pair(res, Integer(r));
+        return Pair<Integer, Integer>(res, Integer(r));
     }
     Pair<Integer, Integer> divmod(Integer other) {
-        if (other.sign == 0) return Pair(Integer(0), *this);
+        if (other.sign == 0) return Pair<Integer, Integer>(Integer(0), *this);
         if (cmp_absolute(other) < 0) {
-            if (sign != other.sign) return Pair(Integer(-1), other + *this);
-            return Pair(Integer(0), *this);
+            if (sign != other.sign) return Pair<Integer, Integer>(Integer(-1), other + *this);
+            return Pair<Integer, Integer>(Integer(0), *this);
         }
         if (other.decs.size() <= 9) {
             return divmod(other.c_int());
@@ -74,7 +74,7 @@ private:
             temp /= 2;
         }
 
-        return Pair(sign == other.sign ? quot : --quot, sign == other.sign ? a : b - a);
+        return Pair<Integer, Integer>(sign == other.sign ? quot : --quot, sign == other.sign ? a : b - a);
     }
     void abs_inc() {
         decs.append(0);

@@ -20,6 +20,7 @@ private:
     };
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
+    DynamicArray<Token> orig;
     Token fromLexeme(UTF8String src) {
         Token tok(TT_EOF, src);
         // TODO: properly set src_file
@@ -33,10 +34,72 @@ private:
         }
         return -1;
     }
+
+    DynamicArray<DynamicArray<Token>> read_multiline_args(int expected_argc, Token &start_tok) {
+        DynamicArray<DynamicArray<Token>> args;
+        DynamicArray<Token> arg;
+        int cur_idx = start_tok.idx + 1;
+        while (cur_idx < orig.size() && orig[cur_idx].type != TT_NEWLINE) {
+            if (orig[cur_idx].lexeme == ",") {
+                args.append(arg);
+                arg.clear();
+                cur_idx++;
+                continue;
+            }
+            arg.append(orig[cur_idx]);
+            cur_idx++;
+        }
+        if (args.size() || arg.size()) args.append(arg);
+        io.println(args);
+        return args;
+    }
+
+    DynamicArray<Token> subst_args(int macro_idx, DynamicArray<DynamicArray<Token>> &args) {
+        DynamicArray<DynamicArray<Token>> orig_args = args;
+        MacroInfo m = macros[macro_idx];
+        DynamicArray<Token> &body = m.body;
+        Preprocessor pp;
+        pp.orig = orig;
+        pp.macros = macros;
+        // pre-scan
+        for (int i = 0; i < args.size(); i++) {
+            pp.res.clear();
+            DynamicArray<Token> prescan_res = pp.preprocess_impl(args[i]);
+            for (int j = prescan_res.size() - 1; j >= 0; j--) {
+                if (prescan_res[j].deleted) prescan_res.remove(j);
+            }
+            args[i] = prescan_res;
+        }
+        // substitution
+        DynamicArray<Token> new_body;
+        for (int i = 0; i < body.size(); i++) {
+            int param_idx = m.params.index(body[i]);
+            if (param_idx != -1) {
+                new_body.extend(args[param_idx]);
+            } else {
+                new_body.append(body[i]);
+            }
+        }
+        io.println(new_body);
+        return new_body;
+    }
+
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         int idx = find_macro(tok);
-        if (idx != -1) {
+        if (idx == -1) return false;
+        if (macros[idx].type == OBJLIKE) {
             res.extend(macros[idx].body);
+            return true;
+        }
+        if (macros[idx].type == MULTILINE) {
+            DynamicArray<DynamicArray<Token>> args = read_multiline_args(macros[idx].argc, tok);
+            if (args.size() != macros[idx].argc) {
+                return false;
+            }
+            res.extend(subst_args(idx, args));
+            for (int i = tok.idx; i < orig.size() && orig[i].type != TT_NEWLINE; i++) {
+                orig[i].deleted = true;
+            }
             return true;
         }
         return false;
@@ -68,13 +131,6 @@ private:
         DynamicArray<Token> temp;
         bool success = expand_macro_all(tok, temp);
         if (success) {
-            // TODO: position adjusting
-            for (int i = 0; i < temp.size(); i++) {
-                temp[i].line = tok.line;
-                temp[i].replaced = true;
-                temp[i].orig_start_col = tok.start_col;
-                temp[i].orig_end_col = tok.end_col;
-            }
             res.extend(temp);
         }
         return success;
@@ -98,6 +154,10 @@ private:
     }
     DynamicArray<Token> preprocess_impl(DynamicArray<Token> &tok) {
         for (int i = 0; i < tok.size(); i++) {
+            if (orig[i].deleted) {
+                tok[i].deleted = true;
+                continue;
+            }
             if (expanded_macro(tok[i])) {
                 continue;
             }
@@ -115,16 +175,15 @@ private:
                 m.name = tok[i];
                 int line = tok[i].line;
                 DynamicArray<Token> macro_body;
-                while (tok[i + 1].line == line) {
+                while (i < tok.size() && tok[i].type != TT_NEWLINE) {
                     i++;
                     macro_body.append(tok[i]);
                 }
-                for (int i = macro_body.size() - 1; i > 0; i--) {
-                    macro_body[i].start_col -= macro_body[i - 1].end_col;
-                    macro_body[i].end_col -= macro_body[i - 1].end_col;
+                if (i >= tok.size()) {
+                    break; // now at the end of file, no need to do anything more
                 }
-                macro_body[0].start_col -= macro_body[0].end_col;
-                macro_body[0].end_col = 0;
+                if (macro_body.size()) macro_body.remove(macro_body.size() - 1);
+                res.append(tok[i]);
                 m.body = macro_body;
                 m.type = OBJLIKE;
                 macros.append(m);
@@ -162,6 +221,7 @@ private:
                 if (tok[i].type != TT_NEWLINE) {
                     // TODO: report error: expected newline after macro decl
                 }
+                res.append(tok[i]);
                 i++;
                 // everything after it is macro body until we met %endmacro on top
                 int endmacro_lvl = 1;
@@ -171,7 +231,7 @@ private:
                     if (tok[i].lexeme == "%") {
                         if (tok[i + 1].lexeme == "endmacro") endmacro_lvl--;
                         else if (tok[i + 1].lexeme == "macro") endmacro_lvl++;
-                        else if (tok[i + 1].type == TT_INT_LITERAL && tok[i + 1].start_col - tok[i].end_col == 1) {
+                        else if (tok[i + 1].type == TT_INT_LITERAL && tok[i + 1].start_col == 1) {
                             int argn = 0;
                             for (int j = 0; j < tok[i + 1].lexeme.size(); j++) {
                                 argn = argn * 10 + (tok[i + 1].lexeme[j] - '0');
@@ -193,20 +253,20 @@ private:
                         met_macro_arg = false;
                     }
                     body.append(tok[i]);
+                    if (tok[i].type == TT_NEWLINE) res.append(tok[i]);
                     i++;
                 }
-                // calculate `delta pos`
-                int cur_line_end = -1;
-                for (int i = 0; i < body.size(); i++) {
-                    if (i + 1 < body.size() && body[i + 1].type == TT_NEWLINE) {
-                        for (int j = i + 1; j > 0; j--) {
-                            body[j].start_col -= body[j - 1].end_col;
-                            body[j].end_col -= body[j - 1].end_col;
-                        }
-                    }
+                // remove the last newline from body
+                if (body.size() && body[body.size() - 1].type != TT_NEWLINE) {
+                    // TODO: report error: expected newline before `%endmacro`
                 }
+                if (body.size()) body.remove(body.size() - 1);
                 // skip `%`, `endmacro`
                 i += 2;
+                if (tok[i].type != TT_NEWLINE) {
+                    // TODO: report error: expected newline after `%endmacro`
+                }
+                res.append(tok[i]);
                 // build macro info
                 m.body = body;
                 macros.append(m);
@@ -216,29 +276,27 @@ private:
         }
         return res;
     }
-    void adjust_position(DynamicArray<Token> &tok) {
+    DynamicArray<DynamicArray<Token>> splitlines(DynamicArray<Token> &tok) {
         DynamicArray<DynamicArray<Token>> lines;
         DynamicArray<Token> line;
-        int cur_line = tok[0].line;
-        // TODO: recalculate lines after introducing newline
         for (int i = 0; i < tok.size(); i++) {
-            if (tok[i].line != cur_line) {
+            line.append(tok[i]);
+            if (tok[i].type == TT_NEWLINE) {
                 lines.append(line);
                 line.clear();
             }
-            line.append(tok[i]);
-            cur_line = tok[i].line;
         }
-        lines.append(line);
+        if (lines.size() || line.size()) lines.append(line);
+        for (int i = 0; i < lines.size(); i++) {
+            for (int j = 0; j < lines[i].size(); j++) lines[i][j].line = i + 1;
+        }
+        return lines;
+    }
+    void adjust_position(DynamicArray<Token> &tok) {
+        DynamicArray<DynamicArray<Token>> lines = splitlines(tok);
         for (int lineno = 0; lineno < lines.size(); lineno++) {
-            if (lines[lineno][0].replaced) {
-                lines[lineno][0].start_col = lines[lineno][0].orig_start_col;
-                lines[lineno][0].end_col = lines[lineno][0].start_col + lines[lineno][0].lexeme.size() - 1;
-            }
-            for (int i = 1; i < lines[lineno].size(); i++) {
-                if (lines[lineno][i].replaced && lines[lineno][i].start_col > 0) continue;
-                lines[lineno][i].start_col = lines[lineno][i].orig_start_col - lines[lineno][i - 1].orig_end_col;
-                lines[lineno][i].end_col = lines[lineno][i].orig_end_col - lines[lineno][i - 1].orig_end_col;
+            for (int i = 0; i < lines[lineno].size(); i++) {
+                if (lines[lineno][i].deleted) lines[lineno][i].end_col = 0;
             }
         }
         for (int lineno = 0; lineno < lines.size(); lineno++) {
@@ -249,11 +307,27 @@ private:
         }
         tok.clear();
         for (int lineno = 0; lineno < lines.size(); lineno++) {
-            tok.extend(lines[lineno]);
+            for (int i = 0; i < lines[lineno].size(); i++) {
+                if (!lines[lineno][i].deleted && lines[lineno][i].type != TT_NEWLINE) tok.append(lines[lineno][i]);
+            }
         }
+    }
+    void normalize(DynamicArray<Token> &tok) {
+        for (int i = 0; i < tok.size(); i++) tok[i].idx = i;
+        DynamicArray<DynamicArray<Token>> lines = splitlines(tok);
+        for (int i = 0; i < lines.size(); i++) {
+            for (int j = lines[i].size() - 1; j > 0; j--) {
+                lines[i][j].start_col -= lines[i][j - 1].end_col;
+                lines[i][j].end_col -= lines[i][j - 1].end_col;
+            }
+        }
+        tok.clear();
+        for (int i = 0; i < lines.size(); i++) tok.extend(lines[i]);
     }
 public:
     void preprocess(DynamicArray<Token> &tok) {
+        normalize(tok);
+        orig = tok;
         tok = preprocess_impl(tok);
         adjust_position(tok);
         convert_keywords(tok);

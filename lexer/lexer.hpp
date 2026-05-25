@@ -35,6 +35,7 @@ private:
         if (!in_line_feed && res == '\n') {
             Token newline = tokAtCurrent(TT_NEWLINE);
             newline.lexeme = "";
+            newline.end_col = newline.start_col;
             result.append(newline);
             line++;
             col = 0;

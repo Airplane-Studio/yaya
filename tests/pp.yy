@@ -2,7 +2,7 @@
 
 # %ifdef __yayapp
 
-%macro mov 2 
+%macro mov 2
     %1 = %2;
 %endmacro
 
@@ -35,6 +35,9 @@ func pseudo_syscall() {
 var rax, rdi, rsi, rdx, hello, hello_len;
 # %endif
 
+%define SYS_exit 60
+%define SYS_write 1
+
 section .data
 hello: db "Hello, World!", 0
 hello_len equ $ - hello
@@ -43,12 +46,12 @@ section .text
 
 global _start
 _start:
-    mov rax, 1
+    mov rax, SYS_write
     mov rdi, 1
     mov rsi, hello
     mov rdx, hello_len
     syscall
 
-    mov rax, 60
+    mov rax, SYS_exit
     mov rdi, 0
     syscall

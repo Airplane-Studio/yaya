@@ -14,6 +14,7 @@ private:
         DynamicArray<Token> body;
         int argc;
         DynamicArray<Token> params;
+        bool in_expansion;
         void output() {
             io.print("Macro[name = ", name, ", body = ", body, "]");
         }
@@ -50,7 +51,6 @@ private:
             cur_idx++;
         }
         if (args.size() || arg.size()) args.append(arg);
-        io.println(args);
         return args;
     }
 
@@ -75,22 +75,40 @@ private:
         for (int i = 0; i < body.size(); i++) {
             int param_idx = m.params.index(body[i]);
             if (param_idx != -1) {
+                args[param_idx][0].start_col = body[i].start_col;
+                args[param_idx][0].end_col = body[i].end_col;
                 new_body.extend(args[param_idx]);
             } else {
                 new_body.append(body[i]);
             }
         }
-        io.println(new_body);
-        return new_body;
+        // post-scan
+        DynamicArray<Token> final_result;
+        Preprocessor postscan_pp;
+        for (int i = 0; i < new_body.size(); i++) new_body[i].idx = i;
+        postscan_pp.orig = new_body;
+        postscan_pp.macros = macros;
+        final_result = postscan_pp.preprocess_impl(new_body);
+        for (int i = final_result.size() - 1; i >= 0; i--) {
+            if (final_result[i].deleted) final_result.remove(i);
+        }
+        return final_result;
     }
 
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         int idx = find_macro(tok);
         if (idx == -1) return false;
+        if (macros[idx].in_expansion) {
+            res.append(tok);
+            return true;
+        }
         if (macros[idx].type == OBJLIKE) {
+            macros[idx].body[0].start_col = tok.start_col;
+            macros[idx].body[0].end_col = tok.end_col;
             res.extend(macros[idx].body);
             return true;
         }
+        macros[idx].in_expansion = true;
         if (macros[idx].type == MULTILINE) {
             DynamicArray<DynamicArray<Token>> args = read_multiline_args(macros[idx].argc, tok);
             if (args.size() != macros[idx].argc) {
@@ -100,6 +118,7 @@ private:
             for (int i = tok.idx; i < orig.size() && orig[i].type != TT_NEWLINE; i++) {
                 orig[i].deleted = true;
             }
+            macros[idx].in_expansion = false;
             return true;
         }
         return false;
@@ -186,6 +205,7 @@ private:
                 res.append(tok[i]);
                 m.body = macro_body;
                 m.type = OBJLIKE;
+                m.in_expansion = false;
                 macros.append(m);
             } else if (tok[i].lexeme == "undef") {
                 i++;
@@ -269,6 +289,7 @@ private:
                 res.append(tok[i]);
                 // build macro info
                 m.body = body;
+                m.in_expansion = false;
                 macros.append(m);
             } else if (tok[i].lexeme == "endmacro") {
                 // TODO: report error: stray `%endmacro` in the program

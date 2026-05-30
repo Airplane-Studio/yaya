@@ -1,4 +1,6 @@
 %macro foo 1
+    %define SYS_exit 60
+    print("Before foo expansion");
     bar %1 * 3
     print("foo expanding");
 %endmacro
@@ -9,3 +11,4 @@
 %endmacro
 
 foo 3
+print(SYS_exit);

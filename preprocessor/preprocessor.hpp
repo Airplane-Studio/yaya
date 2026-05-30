@@ -27,6 +27,11 @@ private:
         // TODO: properly set src_file
         return tok;
     }
+    Token inherit(Token &tok) {
+        Token new_tok = tok;
+        new_tok.could_expand = false;
+        return new_tok;
+    }
     int find_macro(Token &tok) {
         for (int i = macros.size() - 1; i >= 0; i--) {
             if (macros[i].name == tok) {
@@ -92,6 +97,10 @@ private:
         for (int i = final_result.size() - 1; i >= 0; i--) {
             if (final_result[i].deleted) final_result.remove(i);
         }
+        // inherit macros defined in multiline macros
+        for (int i = macros.size(); i < postscan_pp.macros.size(); i++) {
+            macros.append(postscan_pp.macros[i]);
+        }
         return final_result;
     }
 
@@ -99,7 +108,7 @@ private:
         int idx = find_macro(tok);
         if (idx == -1) return false;
         if (macros[idx].in_expansion) {
-            res.append(tok);
+            res.append(inherit(tok));
             return true;
         }
         if (macros[idx].type == OBJLIKE) {
@@ -131,6 +140,7 @@ private:
             while (ptr < res.size() && !hideset.count(res[ptr].lexeme) && find_macro(res[ptr]) != -1) {
                 DynamicArray<Token> temp;
                 Token cur = res[ptr];
+                if (!cur.could_expand) break;
                 bool success = expand_macro_once(cur, temp);
                 if (success) {
                     if (ptr) {

@@ -23,11 +23,11 @@ public:
     UTF8String lexeme;
     int line, start_col, end_col;
     // the properties following are for preprocessor
-    bool at_line_beg, replaced, deleted;
+    bool at_line_beg, could_expand, deleted;
     int orig_start_col, orig_end_col;
     int idx;
     Token(TokenType type = TT_EOF, UTF8String lexeme = "", bool at_line_beg = false, const char *filename = nullptr, int line = 0, int start_col = -1, int end_col = -1)
-      : type(type), lexeme(lexeme), line(line), start_col(start_col), at_line_beg(at_line_beg), replaced(false),
+      : type(type), lexeme(lexeme), line(line), start_col(start_col), at_line_beg(at_line_beg), could_expand(true),
         orig_start_col(start_col), deleted(false), src_file(filename) {
         if (end_col == -1 && start_col != -1) end_col = start_col + lexeme.size() - 1;
         this->orig_end_col = this->end_col = end_col;

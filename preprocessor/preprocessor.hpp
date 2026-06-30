@@ -6,6 +6,7 @@ class Preprocessor {
 private:
     enum MacroType {
         OBJLIKE,
+        FUNCLIKE,
         MULTILINE,
     };
     struct MacroInfo {
@@ -111,6 +112,13 @@ private:
             res.append(inherit(tok));
             return true;
         }
+        if (macros[idx].type == FUNCLIKE) {
+            io.println("Macro info:");
+            io.println(" - parameters: ", macros[idx].params);
+            io.println(" - body: ", macros[idx].body);
+            res.append(inherit(tok));
+            return true;
+        }
         if (macros[idx].type == OBJLIKE) {
             macros[idx].body[0].start_col = tok.start_col;
             macros[idx].body[0].end_col = tok.end_col;
@@ -203,18 +211,36 @@ private:
                 MacroInfo m;
                 m.name = tok[i];
                 int line = tok[i].line;
+                MacroType type = OBJLIKE;
+                i++;
+                DynamicArray<Token> params;
+                if (tok[i].type == TT_SYMBOL && tok[i].lexeme == "(" && tok[i].start_col == 1) {
+                    type = FUNCLIKE;
+                    i++;
+                    while (tok[i].lexeme != ")") {
+                        if (params.size()) {
+                            if (tok[i].lexeme != ",") {
+                                // TODO: report error: expected `,` here
+                            } else i++;
+                        }
+                        params.append(tok[i]);
+                        i++;
+                    }
+                    i++;
+                }
                 DynamicArray<Token> macro_body;
                 while (i < tok.size() && tok[i].type != TT_NEWLINE) {
-                    i++;
                     macro_body.append(tok[i]);
+                    i++;
                 }
                 if (i >= tok.size()) {
                     break; // now at the end of file, no need to do anything more
                 }
-                if (macro_body.size()) macro_body.remove(macro_body.size() - 1);
                 res.append(tok[i]);
                 m.body = macro_body;
-                m.type = OBJLIKE;
+                m.type = type;
+                m.params = params;
+                m.argc = params.size();
                 m.in_expansion = false;
                 macros.append(m);
             } else if (tok[i].lexeme == "undef") {

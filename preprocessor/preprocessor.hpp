@@ -60,6 +60,38 @@ private:
         return args;
     }
 
+    DynamicArray<DynamicArray<Token>> read_funclike_args(int &argc, Token &start_tok, int &arg_end_mark) {
+        DynamicArray<DynamicArray<Token>> args;
+        DynamicArray<Token> arg;
+        int expected_argc = argc;
+
+        int cur_idx = start_tok.idx + 1;
+        if (orig[cur_idx].type != TT_SYMBOL || orig[cur_idx].lexeme != "(") {
+            // not a funclike macro here
+            argc = -1;
+            arg_end_mark = -1;
+            return args;
+        }
+        cur_idx++;
+        int paren_level = 0;
+        while (cur_idx < orig.size() && (orig[cur_idx].type != TT_SYMBOL || orig[cur_idx].lexeme != ")" || paren_level)) {
+            if (orig[cur_idx].lexeme == "," && !paren_level) {
+                args.append(arg);
+                arg.clear();
+                cur_idx++;
+                continue;
+            }
+            if (orig[cur_idx].lexeme == "(") paren_level++;
+            else if (orig[cur_idx].lexeme == ")") paren_level--;
+            arg.append(orig[cur_idx]);
+            cur_idx++;
+        }
+
+        if (args.size() || arg.size()) args.append(arg);
+        arg_end_mark = cur_idx;
+        return args;
+    }
+
     DynamicArray<Token> subst_args(int macro_idx, DynamicArray<DynamicArray<Token>> &args) {
         DynamicArray<DynamicArray<Token>> orig_args = args;
         MacroInfo m = macros[macro_idx];
@@ -112,13 +144,6 @@ private:
             res.append(inherit(tok));
             return true;
         }
-        if (macros[idx].type == FUNCLIKE) {
-            io.println("Macro info:");
-            io.println(" - parameters: ", macros[idx].params);
-            io.println(" - body: ", macros[idx].body);
-            res.append(inherit(tok));
-            return true;
-        }
         if (macros[idx].type == OBJLIKE) {
             macros[idx].body[0].start_col = tok.start_col;
             macros[idx].body[0].end_col = tok.end_col;
@@ -126,6 +151,24 @@ private:
             return true;
         }
         macros[idx].in_expansion = true;
+        if (macros[idx].type == FUNCLIKE) {
+            int argc = macros[idx].argc, arg_end_mark = -1;
+            DynamicArray<DynamicArray<Token>> args = read_funclike_args(argc, tok, arg_end_mark);
+            if (argc == -1) {
+                res.append(inherit(tok));
+                macros[idx].in_expansion = false;
+                return true;
+            }
+            if (args.size() != argc) {
+                // TODO: report error: macro argument mismatch
+                // for now we just (and only can) do nothing
+                return false;
+            }
+            res.extend(subst_args(idx, args)); 
+            for (int i = tok.idx; i <= arg_end_mark && i < orig.size(); i++) orig[i].deleted = true;
+            macros[idx].in_expansion = false;
+            return true;
+        }
         if (macros[idx].type == MULTILINE) {
             DynamicArray<DynamicArray<Token>> args = read_multiline_args(macros[idx].argc, tok);
             if (args.size() != macros[idx].argc) {
@@ -237,6 +280,7 @@ private:
                     break; // now at the end of file, no need to do anything more
                 }
                 res.append(tok[i]);
+                macro_body[0].start_col = 1;
                 m.body = macro_body;
                 m.type = type;
                 m.params = params;

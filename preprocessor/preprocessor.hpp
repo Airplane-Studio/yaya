@@ -92,6 +92,7 @@ private:
             if (orig[cur_idx].lexeme == "," && !paren_level) {
                 args.append(arg);
                 arg.clear();
+                arg.append(placeholder());
                 cur_idx++;
                 continue;
             }
@@ -111,6 +112,13 @@ private:
     }
 
     DynamicArray<Token> subst_args(int macro_idx, DynamicArray<DynamicArray<Token>> &args) {
+        // remove every placeholder (except the dangling ones)
+        for (int i = 1; i < args.size(); i++) {
+            DynamicArray<Token> &arg = args[i];
+            if (arg.size() > 1 && arg[0].lexeme == " ") {
+                arg.remove(0);
+            }
+        }
         DynamicArray<DynamicArray<Token>> orig_args = args;
         MacroInfo m = macros[macro_idx];
         DynamicArray<Token> &body = m.body;
@@ -163,8 +171,19 @@ private:
                 if (new_body.empty()) new_body.extend(arg);
                 else {
                     Token last = new_body[new_body.size() - 1];
+                    if (last.lexeme == ",") {
+                        if (!m.is_variadic) {
+                            continue;
+                        }
+                        // , ##__VA_ARGS__ needs to be specially judged
+                        if (param_idx == args.size() - 1 && orig_args[param_idx].size() == 0) {
+                            new_body.remove(new_body.size() - 1);
+                            continue;
+                        }
+                    }
                     UTF8String new_lexeme = last.lexeme;
                     if (arg.empty()) continue;
+                    for (int i = 1; i < arg[0].start_col; i++) new_lexeme += " ";
                     for (int i = 0; i < arg.size(); i++) {
                         new_lexeme += arg[i].lexeme;
                         for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) new_lexeme += " ";
@@ -341,11 +360,13 @@ private:
                             if (tok[i + 1].lexeme != ")") {
                                 // TODO: report error: expected `)` after `...`
                             }
-                            Token va_args = tok[i];
-                            va_args.type = TT_IDENTIFIER;
-                            va_args.lexeme = "__VA_ARGS__";
-                            va_args.end_col = va_args.start_col + va_args.lexeme.size() - 1;
-                            params.append(va_args);
+                            if (tok[i - 1].type != TT_IDENTIFIER) {
+                                Token va_args = tok[i];
+                                va_args.type = TT_IDENTIFIER;
+                                va_args.lexeme = "__VA_ARGS__";
+                                va_args.end_col = va_args.start_col + va_args.lexeme.size() - 1;
+                                params.append(va_args);
+                            }
                             is_variadic = true;
                         } else if (tok[i].type != TT_IDENTIFIER) {
                             // TODO: report error: macro args must be identifier

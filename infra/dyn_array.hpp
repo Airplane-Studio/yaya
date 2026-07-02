@@ -19,7 +19,7 @@ private:
         }
     }
     void init_arr(int new_len) {
-        if (new_len == 0) capacity_ = 2;
+        if (new_len == 0) capacity_ = 1;
         else capacity_ = new_len;
         arr = new T[capacity_];
         len = new_len;
@@ -81,7 +81,7 @@ public:
         len--;
     }
     void extend(const DynamicArray<T> &other) {
-        for (int i = 0; i < other.size(); i++) append(other[i]);
+        for (int i = 0; i < other.len; i++) append(other[i]);
     }
     bool empty() const { return !len; }
     void clear() {

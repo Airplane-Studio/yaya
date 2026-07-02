@@ -1,8 +1,11 @@
 %define PP_DEFER(A) A PP_EMPTY()
-# %define PP_EXPAND(...) __VA_ARGS__
+%define PP_EXPAND(...) __VA_ARGS__
 %define PP_EMPTY()
 
 %define A() 123
 A()
 PP_DEFER(A)()
-# PP_EXPAND(PP_DEFER(A)())
+PP_EXPAND(PP_DEFER(A)())
+
+%define PP_NARG(...) PP_NARG_IMPL(__VA_ARGS__, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+%define PP_NARG_IMPL(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, n, ...) n

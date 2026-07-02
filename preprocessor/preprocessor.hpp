@@ -16,6 +16,7 @@ private:
         int argc;
         DynamicArray<Token> params;
         bool in_expansion;
+        bool is_variadic;
         void output() {
             io.print("Macro[name = ", name, ", body = ", body, "]");
         }
@@ -60,7 +61,7 @@ private:
         return args;
     }
 
-    DynamicArray<DynamicArray<Token>> read_funclike_args(int &argc, Token &start_tok, int &arg_end_mark) {
+    DynamicArray<DynamicArray<Token>> read_funclike_args(bool is_variadic, int &argc, Token &start_tok, int &arg_end_mark) {
         DynamicArray<DynamicArray<Token>> args;
         DynamicArray<Token> arg;
         int expected_argc = argc;
@@ -75,6 +76,13 @@ private:
         cur_idx++;
         int paren_level = 0;
         while (cur_idx < orig.size() && (orig[cur_idx].type != TT_SYMBOL || orig[cur_idx].lexeme != ")" || paren_level)) {
+            if (is_variadic && args.size() == argc - 1) {
+                if (orig[cur_idx].lexeme == "(") paren_level++;
+                else if (orig[cur_idx].lexeme == ")") paren_level--;
+                arg.append(orig[cur_idx]);
+                cur_idx++;
+                continue;
+            }
             if (orig[cur_idx].lexeme == "," && !paren_level) {
                 args.append(arg);
                 arg.clear();
@@ -96,16 +104,18 @@ private:
         DynamicArray<DynamicArray<Token>> orig_args = args;
         MacroInfo m = macros[macro_idx];
         DynamicArray<Token> &body = m.body;
-        Preprocessor pp;
-        pp.orig = orig;
-        pp.macros = macros;
         // pre-scan
         for (int i = 0; i < args.size(); i++) {
-            pp.res.clear();
-            DynamicArray<Token> prescan_res = pp.preprocess_impl(args[i]);
+            Preprocessor pp;
+            DynamicArray<Token> orig = args[i];
+            for (int j = 0; j < orig.size(); j++) orig[j].idx = j;
+            pp.orig = orig;
+            pp.macros = macros;
+            DynamicArray<Token> prescan_res = pp.preprocess_impl(orig);
             for (int j = prescan_res.size() - 1; j >= 0; j--) {
                 if (prescan_res[j].deleted) prescan_res.remove(j);
             }
+            for (int j = 0; j < prescan_res.size(); j++) prescan_res[j].idx = j;
             args[i] = prescan_res;
         }
         // substitution
@@ -123,9 +133,13 @@ private:
         // post-scan
         DynamicArray<Token> final_result;
         Preprocessor postscan_pp;
-        for (int i = 0; i < new_body.size(); i++) new_body[i].idx = i;
+        for (int i = 0; i < new_body.size(); i++) {
+            new_body[i].idx = i;
+            new_body[i].could_expand = true;
+        }
         postscan_pp.orig = new_body;
         postscan_pp.macros = macros;
+        for (int i = 0; i < postscan_pp.macros.size(); i++) postscan_pp.macros[i].in_expansion = false;
         final_result = postscan_pp.preprocess_impl(new_body);
         for (int i = final_result.size() - 1; i >= 0; i--) {
             if (final_result[i].deleted) final_result.remove(i);
@@ -153,7 +167,7 @@ private:
         macros[idx].in_expansion = true;
         if (macros[idx].type == FUNCLIKE) {
             int argc = macros[idx].argc, arg_end_mark = -1;
-            DynamicArray<DynamicArray<Token>> args = read_funclike_args(argc, tok, arg_end_mark);
+            DynamicArray<DynamicArray<Token>> args = read_funclike_args(macros[idx].is_variadic, argc, tok, arg_end_mark);
             if (argc == -1) {
                 res.append(inherit(tok));
                 macros[idx].in_expansion = false;
@@ -194,12 +208,14 @@ private:
                 if (!cur.could_expand) break;
                 bool success = expand_macro_once(cur, temp);
                 if (success) {
-                    if (ptr) {
-                        temp[0].start_col = res[ptr].start_col;
-                        temp[0].end_col = res[ptr].end_col;
-                    }
-                    res[ptr] = temp[0];
-                    res.insertAll(ptr + 1, temp, 1);
+                    if (temp.size()) {
+                        if (ptr) {
+                            temp[0].start_col = res[ptr].start_col;
+                            temp[0].end_col = res[ptr].end_col;
+                        }
+                        res[ptr] = temp[0];
+                        res.insertAll(ptr + 1, temp, 1);
+                    } else res.remove(ptr);
                     hideset[cur.lexeme] = true;
                 } else res.remove(ptr);
                 flag = flag || success;
@@ -257,6 +273,7 @@ private:
                 MacroType type = OBJLIKE;
                 i++;
                 DynamicArray<Token> params;
+                bool is_variadic = false;
                 if (tok[i].type == TT_SYMBOL && tok[i].lexeme == "(" && tok[i].start_col == 1) {
                     type = FUNCLIKE;
                     i++;
@@ -266,7 +283,19 @@ private:
                                 // TODO: report error: expected `,` here
                             } else i++;
                         }
-                        params.append(tok[i]);
+                        if (tok[i].lexeme == "...") {
+                            if (tok[i + 1].lexeme != ")") {
+                                // TODO: report error: expected `)` after `...`
+                            }
+                            Token va_args = tok[i];
+                            va_args.type = TT_IDENTIFIER;
+                            va_args.lexeme = "__VA_ARGS__";
+                            va_args.end_col = va_args.start_col + va_args.lexeme.size() - 1;
+                            params.append(va_args);
+                            is_variadic = true;
+                        } else if (tok[i].type != TT_IDENTIFIER) {
+                            // TODO: report error: macro args must be identifier
+                        } else params.append(tok[i]);
                         i++;
                     }
                     i++;
@@ -279,6 +308,12 @@ private:
                 if (i >= tok.size()) {
                     break; // now at the end of file, no need to do anything more
                 }
+                if (macro_body.size() == 0) {
+                    Token placeholder = fromLexeme("placeholder");
+                    placeholder.type = TT_EOF;
+                    placeholder.deleted = true;
+                    macro_body.append(placeholder);
+                }
                 res.append(tok[i]);
                 macro_body[0].start_col = 1;
                 m.body = macro_body;
@@ -286,6 +321,7 @@ private:
                 m.params = params;
                 m.argc = params.size();
                 m.in_expansion = false;
+                m.is_variadic = is_variadic;
                 macros.append(m);
             } else if (tok[i].lexeme == "undef") {
                 i++;
@@ -370,6 +406,7 @@ private:
                 // build macro info
                 m.body = body;
                 m.in_expansion = false;
+                m.is_variadic = false;
                 macros.append(m);
             } else if (tok[i].lexeme == "endmacro") {
                 // TODO: report error: stray `%endmacro` in the program

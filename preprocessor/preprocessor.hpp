@@ -34,6 +34,12 @@ private:
         new_tok.could_expand = false;
         return new_tok;
     }
+    Token placeholder() {
+        Token ph = fromLexeme(" ");
+        ph.type = TT_EOF;
+        ph.deleted = true;
+        return ph;
+    }
     int find_macro(Token &tok) {
         for (int i = macros.size() - 1; i >= 0; i--) {
             if (macros[i].name == tok) {
@@ -96,6 +102,10 @@ private:
         }
 
         if (args.size() || arg.size()) args.append(arg);
+        if (args.size() == argc - 1 && is_variadic) {
+            arg.clear();
+            args.append(arg);
+        }
         arg_end_mark = cur_idx;
         return args;
     }
@@ -122,6 +132,50 @@ private:
         DynamicArray<Token> new_body;
         for (int i = 0; i < body.size(); i++) {
             int param_idx = m.params.index(body[i]);
+            if (body[i].lexeme == "$") {
+                i++;
+                param_idx = m.params.index(body[i]);
+                if (param_idx == -1) {
+                    // TODO: report error: expected macro arg after `$`
+                }
+                DynamicArray<Token> arg = orig_args[param_idx];
+                Token tok;
+                tok.type = TT_STRING_LITERAL;
+                tok.lexeme = "\"";
+                for (int i = 0; i < arg.size(); i++) {
+                    tok.lexeme += arg[i].lexeme;
+                    if (i + 1 < arg.size() && arg[i + 1].start_col != 1) tok.lexeme += " ";
+                }
+                tok.lexeme += "\"";
+                tok.start_col = arg[0].start_col;
+                tok.end_col = tok.start_col + tok.lexeme.size() - 1;
+                new_body.append(tok);
+                continue;
+            }
+            if (body[i].lexeme == "$$") {
+                i++;
+                if (i == body.size()) continue;
+                param_idx = m.params.index(body[i]);
+                if (param_idx == -1) {
+                    // TODO: report error: expected macro arg after `$$`, got xxx
+                }
+                DynamicArray<Token> arg = orig_args[param_idx];
+                if (new_body.empty()) new_body.extend(arg);
+                else {
+                    Token last = new_body[new_body.size() - 1];
+                    UTF8String new_lexeme = last.lexeme;
+                    if (arg.empty()) continue;
+                    for (int i = 0; i < arg.size(); i++) {
+                        new_lexeme += arg[i].lexeme;
+                        for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) new_lexeme += " ";
+                    }
+                    DynamicArray<Token> new_toks = Lexer(orig[0].src_file, new_lexeme).tokenize();
+                    normalize(new_toks);
+                    new_body.remove(new_body.size() - 1);
+                    new_body.extend(new_toks);
+                }
+                continue;
+            }
             if (param_idx != -1) {
                 args[param_idx][0].start_col = body[i].start_col;
                 args[param_idx][0].end_col = body[i].end_col;
@@ -309,10 +363,7 @@ private:
                     break; // now at the end of file, no need to do anything more
                 }
                 if (macro_body.size() == 0) {
-                    Token placeholder = fromLexeme("placeholder");
-                    placeholder.type = TT_EOF;
-                    placeholder.deleted = true;
-                    macro_body.append(placeholder);
+                    macro_body.append(placeholder());
                 }
                 res.append(tok[i]);
                 macro_body[0].start_col = 1;

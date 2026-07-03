@@ -25,7 +25,6 @@ public:
         Token tok = orig[report_idx];
         int cur_idx = report_idx;
         int lineno = tok.line;
-        io.println("\x1b[1m", tok.src_file, ":", lineno, ": ", err2str(level), ":\x1b[39;49;0m ", msg);
         while (cur_idx) {
             if (orig[cur_idx].line != lineno) break;
             cur_idx--;
@@ -43,6 +42,8 @@ public:
         }
         //for (int i = 0; i < line.size(); i++) line[i].line = lineno;
         tok = line[off];
+        io.print("\x1b[1m", tok.src_file, ":", lineno, ":", tok.start_col, ": ");
+        io.println(err2str(level), ":\x1b[39;49;0m ", msg);
         TokenPrettifier::print_tokens(line);
         for (int i = 0; i < TokenPrettifier::num_len(lineno) + 3; i++) io.print(' ');
         for (int i = 0; i < tok.start_col - 1; i++) io.print(' ');

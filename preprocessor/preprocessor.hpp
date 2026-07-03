@@ -326,6 +326,7 @@ private:
         return success;
     }
     bool is_keyword(Token &tok) {
+        if (tok.type != TT_IDENTIFIER) return false;
         const char *keywords[] = {
             "if", "for", "while", "operator", "var", "val", "else", "from", "func",
             "return", "class", "static", "interface", "this", "and", "or", "not",
@@ -338,8 +339,10 @@ private:
         return false;
     }
     bool is_preprocess_keyword(Token &tok) {
+        if (tok.type != TT_IDENTIFIER) return false;
         const char *keywords[] = {
-            "define", "undef", "macro", "endmacro", "include"
+            "define", "undef", "macro", "endmacro", "include", "ifdef", "ifndef", "endif",
+            "error", "warning"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
             if (tok.lexeme == keywords[j]) return true;
@@ -418,9 +421,6 @@ private:
                 }
                 if (i >= tok.size()) {
                     break; // now at the end of file, no need to do anything more
-                }
-                if (macro_body.size() == 0) {
-                    macro_body.append(placeholder());
                 }
                 res.append(tok[i]);
                 macro_body[0].start_col = 1;
@@ -550,6 +550,37 @@ private:
                 tokens = include_pp.preprocess_impl(tokens);
                 res.extend(tokens);
                 macros.extend(include_pp.macros);
+            } else if (tok[i].lexeme == "error") {
+                UTF8String msg = "%error ";
+                for (int j = i + 1; j < tok.size() && tok[j].type != TT_NEWLINE; j++) {
+                    msg += tok[j].lexeme;
+                    if (j + 1 < tok.size() && tok[j + 1].type != TT_NEWLINE) {
+                        for (int k = 1; k < tok[j + 1].start_col; k++) {
+                            msg += " ";
+                        }
+                    }
+                    DynamicArray<Token> tok_stream = include_files[orig[0].src_file];
+                    tok_stream[tok[j].idx].type = TT_STRING_LITERAL;
+                    include_files[orig[0].src_file] = tok_stream;
+                }
+                error_and_exit(i, msg);
+            } else if (tok[i].lexeme == "warning") {
+                UTF8String msg = "%warning ";
+                int j = i + 1;
+                for (j = i + 1; j < tok.size() && tok[j].type != TT_NEWLINE; j++) {
+                    msg += tok[j].lexeme;
+                    if (j + 1 < tok.size() && tok[j + 1].type != TT_NEWLINE) {
+                        for (int k = 1; k < tok[j + 1].start_col; k++) {
+                            msg += " ";
+                        }
+                    }
+                    DynamicArray<Token> tok_stream = include_files[orig[0].src_file];
+                    tok_stream[tok[j].idx].type = TT_STRING_LITERAL;
+                    include_files[orig[0].src_file] = tok_stream;
+                }
+                report(WARNING, tok[i], msg);
+                io.println();
+                i = j;
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;

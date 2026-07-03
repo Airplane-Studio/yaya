@@ -338,7 +338,7 @@ private:
     }
     bool is_preprocess_keyword(Token &tok) {
         const char *keywords[] = {
-            "define", "undef", "macro", "endmacro"
+            "define", "undef", "macro", "endmacro", "include"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
             if (tok.lexeme == keywords[j]) return true;
@@ -517,6 +517,37 @@ private:
                 macros.append(m);
             } else if (tok[i].lexeme == "endmacro") {
                 error_and_exit(i, "stray `%endmacro` in the program");
+            } else if (tok[i].lexeme == "include") {
+                i++;
+                if (tok[i].type != TT_STRING_LITERAL) {
+                    error_and_exit(i, "expected quoted string after `%include`");
+                }
+                UTF8String filename = tok[i].lexeme;
+                char *buf = filename.c_str();
+                buf[filename.size() - 1] = 0;
+                yaya_FILE *fp = yaya_fopen(buf + 1, "rb+");
+                if (!fp) {
+                    error_and_exit(i, "file does not exist: `" + filename + "`");
+                }
+                yaya_fseek(fp, 0, yaya_SEEK_END);
+                int size = yaya_ftell(fp);
+                if (size < 0) {
+                    error_and_exit(i, "error opening file: `" + filename + "`");
+                }
+                yaya_fseek(fp, 0, yaya_SEEK_SET);
+                char *file_content = new char[size + 5];
+                yaya_fread(file_content, size, sizeof(char), fp);
+                yaya_fclose(fp);
+                UTF8String content = file_content;
+                delete[] file_content;
+                DynamicArray<Token> tokens = Lexer(buf + 1, content).tokenize();
+                delete[] buf;
+                Preprocessor include_pp;
+                include_pp.normalize(tokens);
+                include_pp.orig = tokens;
+                tokens = include_pp.preprocess_impl(tokens);
+                res.extend(tokens);
+                macros.extend(include_pp.macros);
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;

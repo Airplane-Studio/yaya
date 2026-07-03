@@ -189,6 +189,18 @@ public:
         }
         return false;
     }
+
+    char *c_str() {
+        char *buf = new char[actual_size + 5];
+        int buf_idx = 0;
+        for (int i = 0; i < arr.size(); i++) {
+            for (int j = 0; j < arr[i].len; j++) {
+                buf[buf_idx++] = arr[i].buf[j];
+            }
+        }
+        return buf;
+    }
+
     UTF8Char *begin() { return arr.begin(); }
     UTF8Char *end() { return arr.end(); }
 };

@@ -11,7 +11,7 @@ private:
     bool tok_at_line_beg;
     UTF8String src;
     DynamicArray<Token> result;
-    const char *filename;
+    UTF8String filename;
     UTF8String srcSlice(int start, int len) {
         UTF8String res;
         for (int i = 0; i < len; i++) {
@@ -198,7 +198,7 @@ private:
         }
     }
 public:
-    Lexer(const char *filename, UTF8String src)
+    Lexer(UTF8String filename, UTF8String src)
       : filename(filename), src(src), start(0), current(0), line(1), col(0), tok_at_line_beg(true) {
     }
     DynamicArray<Token> tokenize() {

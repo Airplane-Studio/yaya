@@ -25,10 +25,11 @@ private:
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
+    TreeMap<UTF8String, DynamicArray<Token>> include_files;
     Preprocessor *parent = nullptr;
     Token fromLexeme(UTF8String src) {
         Token tok(TT_EOF, src);
-        // TODO: properly set src_file
+        tok.src_file = orig[0].src_file;
         return tok;
     }
     Token inherit(Token &tok) {
@@ -51,17 +52,17 @@ private:
         return -1;
     }
 
-    void report(ErrorLevel level, int report_idx, UTF8String msg) {
+    void report(ErrorLevel level, Token &report_pos, UTF8String msg) {
         Preprocessor *root = this;
         while (root->parent) root = root->parent;
-        DynamicArray<Token> &orig = root->orig;
+        DynamicArray<Token> orig = root->include_files[report_pos.src_file];
         convert_keywords(orig);
         ErrorReport reporter = ErrorReport(orig);
-        reporter.log(level, report_idx, msg);
+        reporter.log(level, report_pos.idx, msg);
     }
 
     void error_and_exit(int report_idx, UTF8String msg) {
-        report(ERROR, report_idx, msg);
+        report(ERROR, orig[report_idx], msg);
         yaya_exit(1);
     }
 
@@ -265,8 +266,8 @@ private:
                 return true;
             }
             if (args.size() != argc) {
-                report(ERROR, tok.idx, "macro arguments mismatch");
-                report(NOTE, macros[idx].name.idx, "defined here");
+                report(ERROR, tok, "macro arguments mismatch");
+                report(NOTE, macros[idx].name, "defined here");
                 yaya_exit(1);
                 // for now we just (and only can) do nothing
                 return false;
@@ -541,9 +542,10 @@ private:
                 UTF8String content = file_content;
                 delete[] file_content;
                 DynamicArray<Token> tokens = Lexer(buf + 1, content).tokenize();
-                delete[] buf;
                 Preprocessor include_pp;
                 include_pp.normalize(tokens);
+                include_files[buf + 1] = tokens;
+                delete[] buf;
                 include_pp.orig = tokens;
                 tokens = include_pp.preprocess_impl(tokens);
                 res.extend(tokens);
@@ -604,6 +606,7 @@ public:
     void preprocess(DynamicArray<Token> &tok) {
         normalize(tok);
         orig = tok;
+        include_files[orig[0].src_file] = orig;
         tok = preprocess_impl(tok);
         adjust_position(tok);
         convert_keywords(tok);

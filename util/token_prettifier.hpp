@@ -16,7 +16,8 @@ public:
         int n = num_len(maxlineno);
         for (int i = 0; i < toks.size(); i++) {
             if (toks[i].line != cur_line) {
-                io.print("\n\033[33m", toks[i].line, " | \033[39m");
+                if (cur_line) io.println();
+                io.print("\033[33m", toks[i].line, " | \033[39m");
                 cur_line = toks[i].line;
                 prev_col = 1;
             }

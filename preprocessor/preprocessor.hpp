@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lexer.h"
+#include "util.h"
 
 class Preprocessor {
 private:
@@ -24,6 +25,7 @@ private:
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
+    Preprocessor *parent = nullptr;
     Token fromLexeme(UTF8String src) {
         Token tok(TT_EOF, src);
         // TODO: properly set src_file
@@ -47,6 +49,20 @@ private:
             }
         }
         return -1;
+    }
+
+    void report(ErrorLevel level, int report_idx, UTF8String msg) {
+        Preprocessor *root = this;
+        while (root->parent) root = root->parent;
+        DynamicArray<Token> &orig = root->orig;
+        convert_keywords(orig);
+        ErrorReport reporter = ErrorReport(orig);
+        reporter.log(level, report_idx, msg);
+    }
+
+    void error_and_exit(int report_idx, UTF8String msg) {
+        report(ERROR, report_idx, msg);
+        yaya_exit(1);
     }
 
     DynamicArray<DynamicArray<Token>> read_multiline_args(int expected_argc, Token &start_tok) {
@@ -129,6 +145,7 @@ private:
             for (int j = 0; j < orig.size(); j++) orig[j].idx = j;
             pp.orig = orig;
             pp.macros = macros;
+            pp.parent = this;
             DynamicArray<Token> prescan_res = pp.preprocess_impl(orig);
             for (int j = prescan_res.size() - 1; j >= 0; j--) {
                 if (prescan_res[j].deleted) prescan_res.remove(j);
@@ -144,7 +161,7 @@ private:
                 i++;
                 param_idx = m.params.index(body[i]);
                 if (param_idx == -1) {
-                    // TODO: report error: expected macro arg after `$`
+                    error_and_exit(body[i].idx, "expected macro argument after `$`");
                 }
                 DynamicArray<Token> arg = orig_args[param_idx];
                 Token tok;
@@ -165,7 +182,7 @@ private:
                 if (i == body.size()) continue;
                 param_idx = m.params.index(body[i]);
                 if (param_idx == -1) {
-                    // TODO: report error: expected macro arg after `$$`, got xxx
+                    error_and_exit(body[i].idx, "expected macro argument after `$$`");
                 }
                 DynamicArray<Token> arg = orig_args[param_idx];
                 if (new_body.empty()) new_body.extend(arg);
@@ -212,6 +229,7 @@ private:
         }
         postscan_pp.orig = new_body;
         postscan_pp.macros = macros;
+        postscan_pp.parent = this;
         for (int i = 0; i < postscan_pp.macros.size(); i++) postscan_pp.macros[i].in_expansion = false;
         final_result = postscan_pp.preprocess_impl(new_body);
         for (int i = final_result.size() - 1; i >= 0; i--) {
@@ -247,7 +265,9 @@ private:
                 return true;
             }
             if (args.size() != argc) {
-                // TODO: report error: macro argument mismatch
+                report(ERROR, tok.idx, "macro arguments mismatch");
+                report(NOTE, macros[idx].name.idx, "defined here");
+                yaya_exit(1);
                 // for now we just (and only can) do nothing
                 return false;
             }
@@ -316,9 +336,24 @@ private:
         }
         return false;
     }
+    bool is_preprocess_keyword(Token &tok) {
+        const char *keywords[] = {
+            "define", "undef", "macro", "endmacro"
+        };
+        for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
+            if (tok.lexeme == keywords[j]) return true;
+        }
+        return false;
+    }
     void convert_keywords(DynamicArray<Token> &tok) {
         for (int i = 0; i < tok.size(); i++) {
             if (is_keyword(tok[i])) tok[i].type = TT_KEYWORD;
+            if (tok[i].lexeme == "%") {
+                i++;
+                if (i < tok.size() && is_preprocess_keyword(tok[i])) {
+                    tok[i - 1].type = tok[i].type = TT_KEYWORD;
+                }
+            }
         }
     }
     DynamicArray<Token> preprocess_impl(DynamicArray<Token> &tok) {
@@ -352,13 +387,13 @@ private:
                     i++;
                     while (tok[i].lexeme != ")") {
                         if (params.size()) {
-                            if (tok[i].lexeme != ",") {
-                                // TODO: report error: expected `,` here
-                            } else i++;
+                            if (tok[i].lexeme != "," && tok[i].lexeme != "...") {
+                                error_and_exit(i, "expected `,`");
+                            } else if (tok[i].lexeme == ",") i++;
                         }
                         if (tok[i].lexeme == "...") {
                             if (tok[i + 1].lexeme != ")") {
-                                // TODO: report error: expected `)` after `...`
+                                error_and_exit(i + 1, "expected `)` after `...`");
                             }
                             if (tok[i - 1].type != TT_IDENTIFIER) {
                                 Token va_args = tok[i];
@@ -369,7 +404,7 @@ private:
                             }
                             is_variadic = true;
                         } else if (tok[i].type != TT_IDENTIFIER) {
-                            // TODO: report error: macro args must be identifier
+                            error_and_exit(i, "macro argument(s) must be identifier");
                         } else params.append(tok[i]);
                         i++;
                     }
@@ -403,18 +438,18 @@ private:
                 i++;
                 MacroInfo m;
                 if (tok[i].type != TT_IDENTIFIER) {
-                    // TODO: report error: multiline macro must have an identifier name
+                    error_and_exit(i, "the name of multiline macros must be identifier");
                 }
                 m.name = tok[i];
                 m.type = MULTILINE;
                 i++;
                 if (tok[i].type != TT_INT_LITERAL) {
-                    // TODO: report error: %macro requires an integer amount of arguments
+                    error_and_exit(i, "multiline macro requires an integer amount of arguments");
                 }
                 UTF8String lexeme = tok[i].lexeme;
                 int argc = 0;
                 if (lexeme.size() >= 3) {
-                    // TODO: report error: %macro cannot accept more than 10 arguments
+                    error_and_exit(i, "multiline macro only accept up to 10 argument(s)");
                 }
                 for (int i = 0; i < lexeme.size(); i++) {
                     argc = argc * 10 + (lexeme[i] - '0');
@@ -427,7 +462,7 @@ private:
                 // after that there should be a newline
                 i++;
                 if (tok[i].type != TT_NEWLINE) {
-                    // TODO: report error: expected newline after macro decl
+                    error_and_exit(i, "expected newline after macro declaration");
                 }
                 res.append(tok[i]);
                 i++;
@@ -466,13 +501,13 @@ private:
                 }
                 // remove the last newline from body
                 if (body.size() && body[body.size() - 1].type != TT_NEWLINE) {
-                    // TODO: report error: expected newline before `%endmacro`
+                    error_and_exit(i, "expected newline before `%endmacro`");
                 }
                 if (body.size()) body.remove(body.size() - 1);
                 // skip `%`, `endmacro`
                 i += 2;
                 if (tok[i].type != TT_NEWLINE) {
-                    // TODO: report error: expected newline after `%endmacro`
+                    error_and_exit(i, "expected newline after `%endmacro`");
                 }
                 res.append(tok[i]);
                 // build macro info
@@ -481,7 +516,7 @@ private:
                 m.is_variadic = false;
                 macros.append(m);
             } else if (tok[i].lexeme == "endmacro") {
-                // TODO: report error: stray `%endmacro` in the program
+                error_and_exit(i, "stray `%endmacro` in the program");
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;

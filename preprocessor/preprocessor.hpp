@@ -580,6 +580,11 @@ private:
                 tokens = include_pp.preprocess_impl(tokens);
                 res.extend(tokens);
                 macros.extend(include_pp.macros);
+                i++;
+                if (i < tok.size() && tok[i].type != TT_NEWLINE) {
+                    report(WARNING, tok[i], "extra tokens after `%include`");
+                    while (i < tok.size() && tok[i].type != TT_NEWLINE) i++;
+                }
             } else if (tok[i].lexeme == "error") {
                 UTF8String msg = "%error ";
                 for (int j = i + 1; j < tok.size() && tok[j].type != TT_NEWLINE; j++) {

@@ -213,6 +213,34 @@ private:
                 }
                 continue;
             }
+            if (body[i].lexeme == "__VA_OPT__") {
+                int va_opt_idx = i;
+                if (!m.is_variadic) {
+                    report(WARNING, body[i], "__VA_OPT__ can only appear in the expansion of a variadic macro");
+                    new_body.append(body[i]);
+                    continue;
+                }
+                i++;
+                if (body[i].lexeme != "(") {
+                    error_and_exit(body[i].idx, "expected `(` after __VA_OPT__");
+                }
+                i++;
+                int paren_level = 0;
+                DynamicArray<Token> opts;
+                while ((body[i].lexeme != ")" || paren_level) && i < body.size()) {
+                    if (body[i].lexeme == "(") paren_level++;
+                    else if (body[i].lexeme == ")") paren_level--;
+                    opts.append(body[i]);
+                    i++;
+                }
+                if (i >= body.size()) {
+                    error_and_exit(body[va_opt_idx].idx, "unterminated __VA_OPT__");
+                }
+                if (args[args.size() - 1].size() && args[args.size() - 1][0].lexeme != " ") {
+                    new_body.extend(opts);
+                }
+                continue;
+            }
             if (param_idx != -1) {
                 args[param_idx][0].start_col = body[i].start_col;
                 args[param_idx][0].end_col = body[i].end_col;
@@ -225,6 +253,7 @@ private:
         DynamicArray<Token> final_result;
         Preprocessor postscan_pp;
         for (int i = 0; i < new_body.size(); i++) {
+            new_body[i].orig_idx = new_body[i].idx;
             new_body[i].idx = i;
             new_body[i].could_expand = true;
         }
@@ -236,6 +265,7 @@ private:
         for (int i = final_result.size() - 1; i >= 0; i--) {
             if (final_result[i].deleted) final_result.remove(i);
         }
+        for (int i = 0; i < final_result.size(); i++) final_result[i].idx = final_result[i].orig_idx;
         // inherit macros defined in multiline macros
         for (int i = macros.size(); i < postscan_pp.macros.size(); i++) {
             macros.append(postscan_pp.macros[i]);

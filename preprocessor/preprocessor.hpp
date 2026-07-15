@@ -22,11 +22,19 @@ private:
             io.print("Macro[name = ", name, ", body = ", body, "]");
         }
     };
+    enum PPIfBranchType {
+        NOTHING, IF, ELIF, ELSE
+    };
+    struct PPIfBranch {
+        bool condition;
+        PPIfBranchType type;
+    };
     DynamicArray<MacroInfo> macros;
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
     TreeMap<UTF8String, DynamicArray<Token>> include_files;
     Preprocessor *parent = nullptr;
+    DynamicArray<PPIfBranch> prev_branches;
     Token fromLexeme(UTF8String src) {
         Token tok(TT_EOF, src);
         tok.src_file = orig[0].src_file;
@@ -372,7 +380,7 @@ private:
         if (tok.type != TT_IDENTIFIER) return false;
         const char *keywords[] = {
             "define", "undef", "macro", "endmacro", "include", "ifdef", "ifndef", "endif",
-            "error", "warning"
+            "error", "warning", "elifdef", "elifndef", "else"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
             if (tok.lexeme == keywords[j]) return true;
@@ -389,6 +397,26 @@ private:
                 }
             }
         }
+    }
+    bool met_directive(int i, UTF8String directive) {
+        return i + 1 < orig.size() && orig[i].lexeme == "%" && orig[i].at_line_beg && orig[i + 1].lexeme == directive;
+    }
+    int skip_branch(int i) {
+        int if_level = 1;
+        while (i < orig.size()) {
+            if (met_directive(i, "if") || met_directive(i, "ifdef") || met_directive(i, "ifndef")) if_level++;
+            else if (met_directive(i, "endif")) {
+                if_level--;
+                if (if_level == 0) return i;
+            }
+
+            if (met_directive(i, "elif") || met_directive(i, "elifdef") || met_directive(i, "elifndef")
+              || met_directive(i, "else") || met_directive(i, "endif")) {
+                if (if_level == 0) return i;
+            }
+            i++;
+        }
+        return i;
     }
     DynamicArray<Token> preprocess_impl(DynamicArray<Token> &tok) {
         for (int i = 0; i < tok.size(); i++) {
@@ -409,6 +437,7 @@ private:
             if (tok[i].lexeme == "define") {
                 // %define
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination of macro declaration");
                 MacroInfo m;
                 m.name = tok[i];
                 int line = tok[i].line;
@@ -416,9 +445,10 @@ private:
                 i++;
                 DynamicArray<Token> params;
                 bool is_variadic = false;
-                if (tok[i].type == TT_SYMBOL && tok[i].lexeme == "(" && tok[i].start_col == 1) {
+                if (i < tok.size() && (tok[i].type == TT_SYMBOL && tok[i].lexeme == "(" && tok[i].start_col == 1)) {
                     type = FUNCLIKE;
                     i++;
+                    if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination of macro declaration");
                     while (tok[i].lexeme != ")") {
                         if (params.size()) {
                             if (tok[i].lexeme != "," && tok[i].lexeme != "...") {
@@ -426,6 +456,7 @@ private:
                             } else if (tok[i].lexeme == ",") i++;
                         }
                         if (tok[i].lexeme == "...") {
+                            if (i + 1 >= tok.size()) error_and_exit(i, "unexpected termination of macro declaration");
                             if (tok[i + 1].lexeme != ")") {
                                 error_and_exit(i + 1, "expected `)` after `...`");
                             }
@@ -441,6 +472,7 @@ private:
                             error_and_exit(i, "macro argument(s) must be identifier");
                         } else params.append(tok[i]);
                         i++;
+                        if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination of macro declaration");
                     }
                     i++;
                 }
@@ -463,10 +495,12 @@ private:
                 macros.append(m);
             } else if (tok[i].lexeme == "undef") {
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in preprocessor instruction");
                 int idx = find_macro(tok[i]);
                 if (idx != -1) macros.remove(idx);
             } else if (tok[i].lexeme == "macro") {
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in macro declaration");
                 MacroInfo m;
                 if (tok[i].type != TT_IDENTIFIER) {
                     error_and_exit(i, "the name of multiline macros must be identifier");
@@ -474,6 +508,7 @@ private:
                 m.name = tok[i];
                 m.type = MULTILINE;
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in macro declaration");
                 if (tok[i].type != TT_INT_LITERAL) {
                     error_and_exit(i, "multiline macro requires an integer amount of arguments");
                 }
@@ -492,17 +527,20 @@ private:
                 }
                 // after that there should be a newline
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in macro declaration");
                 if (tok[i].type != TT_NEWLINE) {
                     error_and_exit(i, "expected newline after macro declaration");
                 }
                 res.append(tok[i]);
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in macro declaration");
                 // everything after it is macro body until we met %endmacro on top
                 int endmacro_lvl = 1;
                 DynamicArray<Token> body;
                 bool met_macro_arg = false;
                 while (i + 1 < tok.size() && endmacro_lvl) {
                     if (tok[i].lexeme == "%") {
+                        if (i + 1 >= tok.size()) break;
                         if (tok[i + 1].lexeme == "endmacro") endmacro_lvl--;
                         else if (tok[i + 1].lexeme == "macro") endmacro_lvl++;
                         else if (tok[i + 1].type == TT_INT_LITERAL && tok[i + 1].start_col == 1) {
@@ -529,6 +567,7 @@ private:
                     body.append(tok[i]);
                     if (tok[i].type == TT_NEWLINE) res.append(tok[i]);
                     i++;
+                    if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in macro declaration");
                 }
                 // remove the last newline from body
                 if (body.size() && body[body.size() - 1].type != TT_NEWLINE) {
@@ -536,11 +575,13 @@ private:
                 }
                 if (body.size()) body.remove(body.size() - 1);
                 // skip `%`, `endmacro`
-                i += 2;
-                if (tok[i].type != TT_NEWLINE) {
+                i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in macro declaration");
+                i++;
+                if (i < tok.size() && tok[i].type != TT_NEWLINE) {
                     error_and_exit(i, "expected newline after `%endmacro`");
                 }
-                res.append(tok[i]);
+                if (i < tok.size()) res.append(tok[i]);
                 // build macro info
                 m.body = body;
                 m.in_expansion = false;
@@ -550,6 +591,7 @@ private:
                 error_and_exit(i, "stray `%endmacro` in the program");
             } else if (tok[i].lexeme == "include") {
                 i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in include declaration");
                 if (tok[i].type != TT_STRING_LITERAL) {
                     error_and_exit(i, "expected quoted string after `%include`");
                 }
@@ -567,7 +609,13 @@ private:
                 }
                 yaya_fseek(fp, 0, yaya_SEEK_SET);
                 char *file_content = new char[size + 5];
-                yaya_fread(file_content, size, sizeof(char), fp);
+                if (file_content == nullptr) {
+                    error_and_exit(i, "unable to allocate buffer for file: `" + filename + "`");
+                }
+                int bytes_read = yaya_fread(file_content, size, sizeof(char), fp);
+                if (bytes_read != size) {
+                    error_and_exit(i, "error reading file: `" + filename + "`");
+                }
                 yaya_fclose(fp);
                 UTF8String content = file_content;
                 delete[] file_content;
@@ -616,6 +664,46 @@ private:
                 report(WARNING, tok[i], msg);
                 io.println();
                 i = j;
+            } else if (tok[i].lexeme == "ifdef") {
+                int ifdef_start_idx = i;
+                i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "expected macro name after `%ifdef`");
+                bool defined = find_macro(tok[i]) != -1;
+                PPIfBranch prev_branch;
+                prev_branch.condition = defined;
+                prev_branch.type = IF;
+                prev_branches.append(prev_branch);
+                if (!defined) {
+                    i = skip_branch(i);
+                    if (i == tok.size()) {
+                        error_and_exit(ifdef_start_idx, "unterminated %ifdef");
+                    }
+                    i--;
+                }
+            } else if (tok[i].lexeme == "ifndef") {
+                int ifdef_start_idx = i;
+                i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "expected macro name after `%ifndef`");
+                bool defined = find_macro(tok[i]) != -1;
+                PPIfBranch prev_branch;
+                prev_branch.condition = !defined;
+                prev_branch.type = IF;
+                prev_branches.append(prev_branch);
+                if (defined) {
+                    i = skip_branch(i);
+                    if (i == tok.size()) {
+                        error_and_exit(ifdef_start_idx, "unterminated %ifndef");
+                    }
+                    i--;
+                }
+            } else if (tok[i].lexeme == "endif") {
+                if (prev_branches.empty()) error_and_exit(i, "stray `%endif` in program");
+                PPIfBranch &prev_branch = prev_branches[prev_branches.size() - 1];
+                if (prev_branch.type == NOTHING) {
+                    error_and_exit(i, "stray `%endif` in program");
+                }
+                i++;
+                prev_branches.remove(prev_branches.size() - 1);
             } else io.println("Preprocessor directive: ", tok[i]);
         }
         return res;

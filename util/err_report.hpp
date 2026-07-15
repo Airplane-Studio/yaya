@@ -29,13 +29,14 @@ public:
             if (orig[cur_idx].line != lineno) break;
             cur_idx--;
         }
-        if (cur_idx) cur_idx++;
+        if (cur_idx || orig[cur_idx].type == TT_NEWLINE) cur_idx++;
         int off = report_idx - cur_idx;
         DynamicArray<Token> line;
         while (cur_idx < orig.size() && orig[cur_idx].type != TT_NEWLINE) {
             line.append(orig[cur_idx]);
             cur_idx++;
         }
+        if (cur_idx < orig.size()) line.append(orig[cur_idx]);
         for (int i = 1; i < line.size(); i++) {
             line[i].start_col += line[i - 1].end_col;
             line[i].end_col += line[i - 1].end_col;

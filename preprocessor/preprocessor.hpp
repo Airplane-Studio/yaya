@@ -18,6 +18,8 @@ private:
         DynamicArray<Token> params;
         bool in_expansion;
         bool is_variadic;
+        bool is_builtin;
+        Token (Preprocessor::*builtin_trigger)(int idx);
         void output() {
             io.print("Macro[name = ", name, ", body = ", body, "]");
         }
@@ -35,10 +37,20 @@ private:
     TreeMap<UTF8String, DynamicArray<Token>> include_files;
     Preprocessor *parent = nullptr;
     DynamicArray<PPIfBranch> prev_branches;
+    int counter = 0;
     Token fromLexeme(UTF8String src) {
         Token tok(TT_EOF, src);
         tok.src_file = orig[0].src_file;
         return tok;
+    }
+    Token fromInt(int i) {
+        UTF8String str;
+        int T[20], tostr_idx = 0;
+        do { T[tostr_idx++] = i % 10 + '0'; i /= 10; } while (i);
+        while (tostr_idx) str += char(T[--tostr_idx]);
+        Token l = fromLexeme(str);
+        l.type = TT_INT_LITERAL;
+        return l;
     }
     Token inherit(Token &tok) {
         Token new_tok = tok;
@@ -53,7 +65,7 @@ private:
     }
     int find_macro(Token &tok) {
         for (int i = macros.size() - 1; i >= 0; i--) {
-            if (macros[i].name == tok) {
+            if (macros[i].name.lexeme == tok.lexeme) {
                 return i;
             }
         }
@@ -68,7 +80,9 @@ private:
         ErrorReport reporter = ErrorReport(orig);
         reporter.log(level, report_pos.idx, msg);
     }
-
+    void report_at(ErrorLevel level, int idx, UTF8String msg) {
+        report(level, orig[idx], msg);
+    }
     void error_and_exit(int report_idx, UTF8String msg) {
         report(ERROR, orig[report_idx], msg);
         yaya_exit(1);
@@ -276,7 +290,7 @@ private:
         for (int i = 0; i < final_result.size(); i++) final_result[i].idx = final_result[i].orig_idx;
         // inherit macros defined in multiline macros
         for (int i = macros.size(); i < postscan_pp.macros.size(); i++) {
-            macros.append(postscan_pp.macros[i]);
+            if (!postscan_pp.macros[i].is_builtin) macros.append(postscan_pp.macros[i]);
         }
         return final_result;
     }
@@ -284,6 +298,10 @@ private:
     bool expand_macro_once(Token &tok, DynamicArray<Token> &res) {
         int idx = find_macro(tok);
         if (idx == -1) return false;
+        if (macros[idx].is_builtin && macros[idx].builtin_trigger) {
+            res.append((this->*macros[idx].builtin_trigger)(tok.idx));
+            return true;
+        }
         if (macros[idx].in_expansion) {
             res.append(inherit(tok));
             return true;
@@ -490,11 +508,16 @@ private:
                 m.argc = params.size();
                 m.in_expansion = false;
                 m.is_variadic = is_variadic;
+                m.is_builtin = false;
+                m.builtin_trigger = nullptr;
                 macros.append(m);
             } else if (tok[i].lexeme == "undef") {
                 i++;
                 if (i >= tok.size()) error_and_exit(tok.size() - 1, "unexpected termination in preprocessor instruction");
                 int idx = find_macro(tok[i]);
+                if (macros[idx].is_builtin) {
+                    report_at(WARNING, i, UTF8String("undefining builtin macro ") + tok[i].lexeme);
+                }
                 if (idx != -1) macros.remove(idx);
             } else if (tok[i].lexeme == "macro") {
                 i++;
@@ -584,6 +607,8 @@ private:
                 m.body = body;
                 m.in_expansion = false;
                 m.is_variadic = false;
+                m.is_builtin = false;
+                m.builtin_trigger = nullptr;
                 macros.append(m);
             } else if (tok[i].lexeme == "endmacro") {
                 error_and_exit(i, "stray `%endmacro` in the program");
@@ -610,7 +635,7 @@ private:
                 if (file_content == nullptr) {
                     error_and_exit(i, "unable to allocate buffer for file: `" + filename + "`");
                 }
-                int bytes_read = yaya_fread(file_content, size, sizeof(char), fp);
+                int bytes_read = yaya_fread(file_content, sizeof(char), size, fp);
                 if (bytes_read != size) {
                     error_and_exit(i, "error reading file: `" + filename + "`");
                 }
@@ -798,8 +823,51 @@ private:
         tok.clear();
         for (int i = 0; i < lines.size(); i++) tok.extend(lines[i]);
     }
+
+    void add_builtin_macro(UTF8String name, Token result) {
+        DynamicArray<Token> body;
+        body.append(result);
+        MacroInfo m;
+        m.type = OBJLIKE;
+        m.name = fromLexeme(name);
+        m.body = body;
+        m.in_expansion = false;
+        m.is_builtin = true;
+        m.builtin_trigger = nullptr;
+        macros.append(m);
+    }
+    void add_builtin_macro(UTF8String name, Token (Preprocessor::*trigger)(int)) {
+        MacroInfo m;
+        m.type = OBJLIKE;
+        m.name = fromLexeme(name);
+        m.in_expansion = false;
+        m.is_builtin = true;
+        m.builtin_trigger = trigger;
+        macros.append(m);
+    }
+    Token line_trigger(int idx) {
+        int lineno = orig[idx].line;
+        return fromInt(lineno);
+    }
+    Token file_trigger(int idx) {
+        UTF8String src_file = "\"";
+        src_file += orig[idx].src_file + "\"";
+        Token tok = fromLexeme(src_file);
+        tok.type = TT_STRING_LITERAL;
+        return tok;
+    }
+    Token counter_trigger(int idx) {
+        return fromInt(counter++);
+    }
+    void register_builtin_macros() {
+        add_builtin_macro("__yayapp", placeholder());
+        add_builtin_macro("__LINE__", &Preprocessor::line_trigger);
+        add_builtin_macro("__FILE__", &Preprocessor::file_trigger);
+        add_builtin_macro("__COUNTER__", &Preprocessor::counter_trigger);
+    }
 public:
     void preprocess(DynamicArray<Token> &tok) {
+        register_builtin_macros();
         normalize(tok);
         orig = tok;
         include_files[orig[0].src_file] = orig;

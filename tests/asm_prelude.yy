@@ -1,4 +1,4 @@
-# %ifdef __yayapp
+%ifdef __yayapp
 
 %macro mov 2 
     %1 = %2;
@@ -31,4 +31,4 @@ func pseudo_syscall() {
 }
 
 var rax, rdi, rsi, rdx, hello, hello_len;
-# %endif
+%endif

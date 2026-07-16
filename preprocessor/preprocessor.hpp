@@ -23,7 +23,7 @@ private:
         }
     };
     enum PPIfBranchType {
-        NOTHING, IF, ELIF, ELSE
+        IF, ELIF, ELSE
     };
     struct PPIfBranch {
         bool condition;
@@ -408,11 +408,9 @@ private:
             else if (met_directive(i, "endif")) {
                 if_level--;
                 if (if_level == 0) return i;
-            }
-
-            if (met_directive(i, "elif") || met_directive(i, "elifdef") || met_directive(i, "elifndef")
-              || met_directive(i, "else") || met_directive(i, "endif")) {
-                if (if_level == 0) return i;
+            } else if (met_directive(i, "elif") || met_directive(i, "elifdef") || met_directive(i, "elifndef")
+              || met_directive(i, "else")) {
+                if (if_level == 1) return i;
             }
             i++;
         }
@@ -681,7 +679,7 @@ private:
                     i--;
                 }
             } else if (tok[i].lexeme == "ifndef") {
-                int ifdef_start_idx = i;
+                int ifndef_start_idx = i;
                 i++;
                 if (i >= tok.size()) error_and_exit(tok.size() - 1, "expected macro name after `%ifndef`");
                 bool defined = find_macro(tok[i]) != -1;
@@ -692,16 +690,60 @@ private:
                 if (defined) {
                     i = skip_branch(i);
                     if (i == tok.size()) {
-                        error_and_exit(ifdef_start_idx, "unterminated %ifndef");
+                        error_and_exit(ifndef_start_idx, "unterminated %ifndef");
+                    }
+                    i--;
+                }
+            } else if (tok[i].lexeme == "elifdef") {
+                int elifdef_start_idx = i;
+                if (prev_branches.empty()) error_and_exit(i, "stray `%elifdef` in program");
+                PPIfBranch &prev_branch = prev_branches[prev_branches.size() - 1];
+                if (prev_branch.type == ELSE) error_and_exit(i, "stray `%elifdef` in program");
+                i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "expected macro name after `%elifdef`");
+                bool defined = find_macro(tok[i]) != -1;
+                prev_branch.condition = defined && !prev_branch.condition;
+                prev_branch.type = ELIF;
+                if (!prev_branch.condition) {
+                    i = skip_branch(i);
+                    if (i == tok.size()) {
+                        error_and_exit(elifdef_start_idx, "unterminated %elifdef");
+                    }
+                    i--;
+                }
+            } else if (tok[i].lexeme == "elifndef") {
+                int elifndef_start_idx = i;
+                if (prev_branches.empty()) error_and_exit(i, "stray `%elifndef` in program");
+                PPIfBranch &prev_branch = prev_branches[prev_branches.size() - 1];
+                if (prev_branch.type == ELSE) error_and_exit(i, "stray `%elifndef` in program");
+                i++;
+                if (i >= tok.size()) error_and_exit(tok.size() - 1, "expected macro name after `%elifndef`");
+                bool defined = find_macro(tok[i]) != -1;
+                prev_branch.condition = !defined && !prev_branch.condition;
+                prev_branch.type = ELIF;
+                if (!prev_branch.condition) {
+                    i = skip_branch(i);
+                    if (i == tok.size()) {
+                        error_and_exit(elifndef_start_idx, "unterminated %elifndef");
+                    }
+                    i--;
+                }
+            } else if (tok[i].lexeme == "else") {
+                int else_start_idx = i;
+                if (prev_branches.empty()) error_and_exit(i, "stray `%else` in program");
+                PPIfBranch &prev_branch = prev_branches[prev_branches.size() - 1];
+                if (prev_branch.type == ELSE) error_and_exit(i, "stray `%else` in program");
+                prev_branch.type = ELSE;
+                if (prev_branch.condition) {
+                    i = skip_branch(i);
+                    if (i == tok.size()) {
+                        error_and_exit(else_start_idx, "unterminated %else");
                     }
                     i--;
                 }
             } else if (tok[i].lexeme == "endif") {
                 if (prev_branches.empty()) error_and_exit(i, "stray `%endif` in program");
                 PPIfBranch &prev_branch = prev_branches[prev_branches.size() - 1];
-                if (prev_branch.type == NOTHING) {
-                    error_and_exit(i, "stray `%endif` in program");
-                }
                 i++;
                 prev_branches.remove(prev_branches.size() - 1);
             } else io.println("Preprocessor directive: ", tok[i]);

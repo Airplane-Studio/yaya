@@ -29,6 +29,33 @@ public:
         else return left->height - right->height;
     }
 
+    TreeNode operator=(const TreeNode &other) {
+        key = other.key;
+        value = other.value;
+        if (other.left) {
+            left = new TreeNode(other.left.key, other.left.value);
+            *left = other->left;
+        }
+        if (other.right) {
+            right = new TreeNode(other.right.key, other.right.value);
+            *right = other->right;
+        }
+        return *this;
+    }
+
+    TreeNode(const TreeNode &other) {
+        key = other.key;
+        value = other.value;
+        if (other.left) {
+            left = new TreeNode(other.left.key, other.left.value);
+            *left = other->left;
+        }
+        if (other.right) {
+            right = new TreeNode(other.right.key, other.right.value);
+            *right = other->right;
+        }
+    }
+
     ~TreeNode() {
         delete left;
         delete right;
@@ -199,19 +226,19 @@ private:
         return NULL;
     }
 
-    TreeNode<K, V> *minimum(TreeNode<K, V> *node) {
+    TreeNode<K, V> *minimum(TreeNode<K, V> *node) const {
         if (!node) return nullptr;
         while (node->left) node = node->left;
         return node;
     }
 
-    TreeNode<K, V> *maximum(TreeNode<K, V> *node) {
+    TreeNode<K, V> *maximum(TreeNode<K, V> *node) const {
         if (!node) return nullptr;
         while (node->right) node = node->right;
         return node;
     }
 
-    TreeNode<K, V> *predecessor(TreeNode<K, V> *node) {
+    TreeNode<K, V> *predecessor(TreeNode<K, V> *node) const {
         if (!node) return nullptr;
         TreeNode<K, V> *left = node->left;
         if (left) return maximum(left);
@@ -219,7 +246,7 @@ private:
         return node->fa;
     }
 
-    TreeNode<K, V> *successor(TreeNode<K, V> *node) {
+    TreeNode<K, V> *successor(TreeNode<K, V> *node) const {
         if (!node) return nullptr;
         TreeNode<K, V> *right = node->right;
         if (right) return minimum(right);
@@ -251,6 +278,14 @@ private:
         }
     };
 public:
+    TreeMap() {}
+    TreeMap operator=(const TreeMap &other) {
+        root = new TreeNode<K, V>(other.root);
+        return *this;
+    }
+    TreeMap(const TreeMap &other) {
+        root = new TreeNode<K, V>(other.root);
+    }
     ~TreeMap() {
         delete root;
     }
@@ -266,13 +301,19 @@ public:
         return search(key) != NULL;
     }
 
+    void update(const TreeMap &other) {
+        for (Pair<K, V> p: other) {
+            (*this)[p.first] = p.second;
+        }
+    }
+
     friend class Iterator;
     class Iterator {
     private:
-        TreeMap<K, V> *parent;
+        const TreeMap<K, V> *parent;
         TreeNode<K, V> *current_node;
     public:
-        Iterator(TreeMap<K, V> *parent, TreeNode<K, V> *current_node)
+        Iterator(const TreeMap<K, V> *parent, TreeNode<K, V> *current_node)
           : parent(parent), current_node(current_node) {}
         
         Pair<K, V> operator*() {
@@ -304,8 +345,8 @@ public:
         }
     };
 
-    Iterator begin() { return Iterator(this, minimum(root)); }
-    Iterator end() { return Iterator(this, nullptr); }
+    Iterator begin() const { return Iterator(this, minimum(root)); }
+    Iterator end() const { return Iterator(this, nullptr); }
 
     void output() {
         io.print('{');

@@ -1,7 +1,3 @@
-%undef __yayapp
-__LINE__
-__LINE__
-__LINE__
-__FILE__
-
-__COUNTER__
+%pragma nothing
+abc
+def

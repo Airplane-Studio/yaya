@@ -35,6 +35,7 @@ private:
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
     TreeMap<UTF8String, DynamicArray<Token>> include_files;
+    TreeMap<UTF8String, bool> pragma_once_mark;
     Preprocessor *parent = nullptr;
     DynamicArray<PPIfBranch> prev_branches;
     int counter = 0;
@@ -398,7 +399,7 @@ private:
         if (tok.type != TT_IDENTIFIER) return false;
         const char *keywords[] = {
             "define", "undef", "macro", "endmacro", "include", "ifdef", "ifndef", "endif",
-            "error", "warning", "elifdef", "elifndef", "else"
+            "error", "warning", "elifdef", "elifndef", "else", "pragma"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
             if (tok.lexeme == keywords[j]) return true;
@@ -622,6 +623,7 @@ private:
                 char *buf = filename.c_str();
                 buf[filename.size() - 1] = 0;
                 yaya_FILE *fp = yaya_fopen(buf + 1, "rb+");
+                if (pragma_once_mark.count(buf + 1)) continue;
                 if (!fp) {
                     error_and_exit(i, "file does not exist: `" + filename + "`");
                 }
@@ -639,18 +641,23 @@ private:
                 if (bytes_read != size) {
                     error_and_exit(i, "error reading file: `" + filename + "`");
                 }
+                file_content[size] = 0;
                 yaya_fclose(fp);
                 UTF8String content = file_content;
                 delete[] file_content;
                 DynamicArray<Token> tokens = Lexer(buf + 1, content).tokenize();
                 Preprocessor include_pp;
                 include_pp.normalize(tokens);
+                include_pp.macros = macros;
                 include_files[buf + 1] = tokens;
                 delete[] buf;
                 include_pp.orig = tokens;
                 tokens = include_pp.preprocess_impl(tokens);
                 res.extend(tokens);
-                macros.extend(include_pp.macros);
+                for (int i = macros.size(); i < include_pp.macros.size(); i++) {
+                    if (!include_pp.macros[i].is_builtin) macros.append(include_pp.macros[i]);
+                }
+                pragma_once_mark.update(include_pp.pragma_once_mark);
                 i++;
                 if (i < tok.size() && tok[i].type != TT_NEWLINE) {
                     report(WARNING, tok[i], "extra tokens after `%include`");
@@ -771,7 +778,17 @@ private:
                 PPIfBranch &prev_branch = prev_branches[prev_branches.size() - 1];
                 i++;
                 prev_branches.remove(prev_branches.size() - 1);
-            } else io.println("Preprocessor directive: ", tok[i]);
+            } else if (tok[i].lexeme == "pragma" && i + 1 < tok.size() && tok[i + 1].lexeme == "once") {
+                i += 2;
+                pragma_once_mark[tok[i - 1].src_file] = true;
+            } else if (tok[i].lexeme == "pragma") {
+                while (i < tok.size() && tok[i].type != TT_NEWLINE) i++;
+                i--;
+            } else {
+                // we do not consider this as a preprocessor directive, but a modulo operator
+                res.append(tok[i - 1]);
+                res.append(tok[i]);
+            }
         }
         return res;
     }

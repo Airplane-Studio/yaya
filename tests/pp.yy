@@ -1,10 +1,11 @@
 %include "tests/asm_prelude.yy"
+%include "tests/asm_prelude.yy"
 
 %define SYS_exit 60
 %define SYS_write 1
 
 section .data
-hello: db "Hello, World!", 0
+hello: db "Hello, World!", 10, 0
 hello_len equ $ - hello
 
 section .text

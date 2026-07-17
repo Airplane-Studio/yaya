@@ -1,3 +1,5 @@
+%pragma once
+
 %ifdef __yayapp
 
 %macro mov 2 
@@ -12,7 +14,7 @@
 
 %define :
 
-%macro db 2
+%macro db 3
     = %1;
 %endmacro
 

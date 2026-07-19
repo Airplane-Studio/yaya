@@ -224,7 +224,6 @@ private:
                     }
                     UTF8String new_lexeme = last.lexeme;
                     if (arg.empty()) continue;
-                    for (int i = 1; i < arg[0].start_col; i++) new_lexeme += " ";
                     for (int i = 0; i < arg.size(); i++) {
                         new_lexeme += arg[i].lexeme;
                         for (int j = 1; j < (i + 1 != arg.size() ? arg[i + 1].start_col : 0); j++) new_lexeme += " ";

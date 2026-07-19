@@ -1,4 +1,5 @@
-%pragma once
+%ifndef _ASM_PRELUDE
+%define _ASM_PRELUDE
 
 %ifdef __yayapp
 
@@ -33,4 +34,6 @@ func pseudo_syscall() {
 }
 
 var rax, rdi, rsi, rdx, hello, hello_len;
+%endif
+
 %endif

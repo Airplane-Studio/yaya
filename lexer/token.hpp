@@ -33,8 +33,11 @@ public:
         if (end_col == -1 && start_col != -1) end_col = start_col + lexeme.size() - 1;
         this->orig_end_col = this->end_col = end_col;
     }
-    bool operator==(const Token &other) {
+    bool operator==(const Token &other) const {
         return type == other.type && lexeme == other.lexeme;
+    }
+    bool operator!=(const Token &other) const {
+        return !(*this == other);
     }
     void output() {
         static const char *type2str[] = {

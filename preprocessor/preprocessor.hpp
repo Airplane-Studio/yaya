@@ -35,7 +35,7 @@ private:
     DynamicArray<Token> res;
     DynamicArray<Token> orig;
     TreeMap<UTF8String, DynamicArray<Token>> include_files;
-    TreeMap<UTF8String, bool> pragma_once_mark;
+    TreeMap<UTF8String, bool> include_guarded;
     Preprocessor *parent = nullptr;
     DynamicArray<PPIfBranch> prev_branches;
     int counter = 0;
@@ -398,7 +398,7 @@ private:
         if (tok.type != TT_IDENTIFIER) return false;
         const char *keywords[] = {
             "define", "undef", "macro", "endmacro", "include", "ifdef", "ifndef", "endif",
-            "error", "warning", "elifdef", "elifndef", "else", "pragma"
+            "error", "warning", "elifdef", "elifndef", "else", "pragma", "if", "elif"
         };
         for (int j = 0; j < sizeof(keywords) / sizeof(*keywords); j++) {
             if (tok.lexeme == keywords[j]) return true;
@@ -433,6 +433,33 @@ private:
             i++;
         }
         return i;
+    }
+    int skip_if(int i) {
+        while (i < orig.size() && !met_directive(i, "endif")) {
+            i = skip_branch(i + 1);
+        }
+        return i;
+    }
+    bool detect_include_guard(DynamicArray<Token> &tok) {
+        // len([#, ifndef, guard, newline, #, define, guard, newline, #, endif]) = 10
+        if (tok.size() < 10) return false;
+        if (tok[0].lexeme != "%" || tok[1].lexeme != "ifndef" || tok[2].type != TT_IDENTIFIER || tok[3].type != TT_NEWLINE) return false;
+        if (tok[4].lexeme != "%" || tok[5].lexeme != "define" || tok[6] != tok[2]) return false;
+        // skip until the end, and let the final `#endif` appear at the bottom
+        int i = 7;
+        while (i < tok.size()) {
+            if (!tok[i].at_line_beg || tok[i].lexeme != "%") {
+                i++;
+                continue;
+            }
+            i++;
+            if (i >= tok.size()) break;
+            if (i == tok.size() - 1 && tok[i].lexeme == "endif") return true;
+            if (tok[i].lexeme == "if" || tok[i].lexeme == "ifdef" || tok[i].lexeme == "ifndef") {
+                i = skip_if(i);
+            } else i++;
+        }
+        return false;
     }
     DynamicArray<Token> preprocess_impl(DynamicArray<Token> &tok) {
         for (int i = 0; i < tok.size(); i++) {
@@ -621,8 +648,9 @@ private:
                 UTF8String filename = tok[i].lexeme;
                 char *buf = filename.c_str();
                 buf[filename.size() - 1] = 0;
+                if (include_guarded.count(buf + 1)) continue;
+                io.println("reading file ", buf + 1);
                 yaya_FILE *fp = yaya_fopen(buf + 1, "rb+");
-                if (pragma_once_mark.count(buf + 1)) continue;
                 if (!fp) {
                     error_and_exit(i, "file does not exist: `" + filename + "`");
                 }
@@ -645,6 +673,7 @@ private:
                 UTF8String content = file_content;
                 delete[] file_content;
                 DynamicArray<Token> tokens = Lexer(buf + 1, content).tokenize();
+                if (detect_include_guard(tokens)) include_guarded[buf + 1] = true;
                 Preprocessor include_pp;
                 include_pp.normalize(tokens);
                 include_pp.macros = macros;
@@ -656,7 +685,7 @@ private:
                 for (int i = macros.size(); i < include_pp.macros.size(); i++) {
                     if (!include_pp.macros[i].is_builtin) macros.append(include_pp.macros[i]);
                 }
-                pragma_once_mark.update(include_pp.pragma_once_mark);
+                include_guarded.update(include_pp.include_guarded);
                 i++;
                 if (i < tok.size() && tok[i].type != TT_NEWLINE) {
                     report(WARNING, tok[i], "extra tokens after `%include`");
@@ -693,6 +722,15 @@ private:
                 report(WARNING, tok[i], msg);
                 io.println();
                 i = j;
+            } else if (tok[i].lexeme == "if") {
+                i++;
+                PPIfBranch prev_branch;
+                prev_branch.condition = false;
+                prev_branch.type = IF;
+                prev_branches.append(prev_branch);
+                io.println("TODO: evaluate expression; for now we skip the whole if");
+                i = skip_if(i);
+                i--;
             } else if (tok[i].lexeme == "ifdef") {
                 int ifdef_start_idx = i;
                 i++;
@@ -725,6 +763,11 @@ private:
                     }
                     i--;
                 }
+            } else if (tok[i].lexeme == "elif") {
+                i++;
+                io.println("TODO: evaluate expression; for now we skip the whole elif branch");
+                i = skip_branch(i);
+                i--;
             } else if (tok[i].lexeme == "elifdef") {
                 int elifdef_start_idx = i;
                 if (prev_branches.empty()) error_and_exit(i, "stray `%elifdef` in program");
@@ -779,7 +822,7 @@ private:
                 prev_branches.remove(prev_branches.size() - 1);
             } else if (tok[i].lexeme == "pragma" && i + 1 < tok.size() && tok[i + 1].lexeme == "once") {
                 i += 2;
-                pragma_once_mark[tok[i - 1].src_file] = true;
+                include_guarded[tok[i - 1].src_file] = true;
             } else if (tok[i].lexeme == "pragma") {
                 while (i < tok.size() && tok[i].type != TT_NEWLINE) i++;
                 i--;

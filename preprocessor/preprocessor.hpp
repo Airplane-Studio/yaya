@@ -882,6 +882,14 @@ private:
         add_builtin_macro("__FILE__", &Preprocessor::file_trigger);
         add_builtin_macro("__COUNTER__", &Preprocessor::counter_trigger);
     }
+    void concat_adjacent_string_literal(DynamicArray<Token> &tok) {
+        for (int i = tok.size() - 1; i >= 0; i--) {
+            if (i >= 1 && tok[i - 1].type == TT_STRING_LITERAL && tok[i].type == TT_STRING_LITERAL) {
+                tok[i - 1].lexeme = tok[i - 1].lexeme.substring(0, -1) + tok[i].lexeme.substring(1, 0);
+                tok.remove(i);
+            }
+        }
+    }
 public:
     void preprocess(DynamicArray<Token> &tok) {
         register_builtin_macros();
@@ -891,5 +899,6 @@ public:
         tok = preprocess_impl(tok);
         adjust_position(tok);
         convert_keywords(tok);
+        concat_adjacent_string_literal(tok);
     }
 };

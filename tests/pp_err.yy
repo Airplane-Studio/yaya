@@ -1,3 +1,3 @@
-%pragma nothing
-abc
-def
+%define Hello "Hello"
+%define World "World"
+Hello World "!"

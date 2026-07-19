@@ -201,6 +201,13 @@ public:
         return buf;
     }
 
+    UTF8String substring(int start, int end) {
+        if (end <= 0) end = arr.size() + end;
+        UTF8String res;
+        for (int i = start; i < end; i++) res += arr[i];
+        return res;
+    }
+
     UTF8Char *begin() { return arr.begin(); }
     UTF8Char *end() { return arr.end(); }
 };

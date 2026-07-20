@@ -3,6 +3,7 @@
 #include "lexer.h"
 #include "preprocessor.h"
 #include "util.h"
+#include "parser.h"
 
 char *read_whole_file(const char *filename, int *osize) {
     FILE *fp = fopen(filename, "rb+");
@@ -41,11 +42,16 @@ char *cmd_getline() {
 
 void run(char *code, const char *filename) {
     Lexer l = Lexer(filename, code);
-    Preprocessor pp;
     DynamicArray<Token> toks = l.tokenize();
+    Preprocessor pp;
+    DynamicArray<Token> toks_for_report = toks;
+    pp.convert_keywords(toks_for_report);
+    ErrorReport orig = ErrorReport(toks_for_report);
     pp.preprocess(toks);
-    //io.println(toks);
-    TokenPrettifier::print_tokens(toks);
+    ErrorReport post_pp = ErrorReport(toks);
+    Parser parser = Parser(toks, orig, post_pp);
+    /* BaseNode *root = */parser.parse();
+    // io.println(root);
 }
 
 void repl() {

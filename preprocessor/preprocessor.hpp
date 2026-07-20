@@ -377,6 +377,7 @@ private:
         DynamicArray<Token> temp;
         bool success = expand_macro_all(tok, temp);
         if (success) {
+            for (int i = 0; i < temp.size(); i++) temp[i].orig_idx = macros[find_macro(tok)].name.idx;
             res.extend(temp);
         }
         return success;
@@ -404,17 +405,6 @@ private:
             if (tok.lexeme == keywords[j]) return true;
         }
         return false;
-    }
-    void convert_keywords(DynamicArray<Token> &tok) {
-        for (int i = 0; i < tok.size(); i++) {
-            if (is_keyword(tok[i])) tok[i].type = TT_KEYWORD;
-            if (tok[i].lexeme == "%") {
-                i++;
-                if (i < tok.size() && is_preprocess_keyword(tok[i])) {
-                    tok[i - 1].type = tok[i].type = TT_KEYWORD;
-                }
-            }
-        }
     }
     bool met_directive(int i, UTF8String directive) {
         return i + 1 < orig.size() && orig[i].lexeme == "%" && orig[i].at_line_beg && orig[i + 1].lexeme == directive;
@@ -871,7 +861,7 @@ private:
         }
     }
     void normalize(DynamicArray<Token> &tok) {
-        for (int i = 0; i < tok.size(); i++) tok[i].idx = i;
+        for (int i = 0; i < tok.size(); i++) tok[i].orig_idx = tok[i].idx = i;
         DynamicArray<DynamicArray<Token>> lines = splitlines(tok);
         for (int i = 0; i < lines.size(); i++) {
             for (int j = lines[i].size() - 1; j > 0; j--) {
@@ -933,6 +923,17 @@ private:
         }
     }
 public:
+    void convert_keywords(DynamicArray<Token> &tok) {
+        for (int i = 0; i < tok.size(); i++) {
+            if (is_keyword(tok[i])) tok[i].type = TT_KEYWORD;
+            if (tok[i].lexeme == "%") {
+                i++;
+                if (i < tok.size() && is_preprocess_keyword(tok[i])) {
+                    tok[i - 1].type = tok[i].type = TT_KEYWORD;
+                }
+            }
+        }
+    }
     void preprocess(DynamicArray<Token> &tok) {
         register_builtin_macros();
         normalize(tok);
@@ -942,5 +943,6 @@ public:
         adjust_position(tok);
         convert_keywords(tok);
         concat_adjacent_string_literal(tok);
+        for (int i = 0; i < tok.size(); i++) tok[i].idx = i;
     }
 };

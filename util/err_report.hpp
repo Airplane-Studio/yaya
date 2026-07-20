@@ -21,7 +21,7 @@ private:
 public:
     ErrorReport(DynamicArray<Token> &orig) : orig(orig) {}
 
-    void log(ErrorLevel level, int report_idx, UTF8String msg) {
+    void log(ErrorLevel level, int report_idx, UTF8String msg, bool resolve_pos = true) {
         Token tok = orig[report_idx];
         int cur_idx = report_idx;
         int lineno = tok.line;
@@ -37,9 +37,11 @@ public:
             cur_idx++;
         }
         if (cur_idx < orig.size()) line.append(orig[cur_idx]);
-        for (int i = 1; i < line.size(); i++) {
-            line[i].start_col += line[i - 1].end_col;
-            line[i].end_col += line[i - 1].end_col;
+        if (resolve_pos) {
+            for (int i = 1; i < line.size(); i++) {
+                line[i].start_col += line[i - 1].end_col;
+                line[i].end_col += line[i - 1].end_col;
+            }
         }
         //for (int i = 0; i < line.size(); i++) line[i].line = lineno;
         tok = line[off];

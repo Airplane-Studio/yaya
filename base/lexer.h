@@ -1,4 +1,4 @@
 #pragma once
 
-#include "lexer.hpp"
-#include "token.hpp"
+#include "lexer/lexer.hpp"
+#include "lexer/token.hpp"

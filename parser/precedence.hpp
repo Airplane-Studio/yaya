@@ -1,0 +1,20 @@
+#pragma once
+
+enum Precedence {
+    PREC_NONE,
+    PREC_ASSIGN,
+    PREC_LOR,
+    PREC_LAND,
+    PREC_BOR,
+    PREC_BXOR,
+    PREC_BAND,
+    PREC_COMPARISON,
+    PREC_SHIFT,
+    PREC_PLUSMINUS,
+    PREC_MULDIVMOD,
+    PREC_UNARY,
+    PREC_POWER,
+    PREC_MEMBER,
+    PREC_CALL,
+    PREC_LITERAL
+};

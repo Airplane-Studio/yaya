@@ -20,7 +20,8 @@ private:
     void error_at(Token previous) {
         report_after_pp.log(ERROR, previous.idx, "expected expression", false);
         if (previous.orig_idx != previous.idx) {
-            report_orig.log(NOTE, previous.orig_idx, "in expansion of macro", false);
+            report_orig.log(NOTE, previous.macro_idx, "in expansion of macro", false);
+            report_orig.log(NOTE, previous.orig_idx, "original line", false);
         }
     }
     ////////////////////

@@ -377,7 +377,10 @@ private:
         DynamicArray<Token> temp;
         bool success = expand_macro_all(tok, temp);
         if (success) {
-            for (int i = 0; i < temp.size(); i++) temp[i].orig_idx = macros[find_macro(tok)].name.idx;
+            for (int i = 0; i < temp.size(); i++) {
+                temp[i].macro_idx = macros[find_macro(tok)].name.idx;
+                temp[i].orig_idx = tok.idx;
+            }
             res.extend(temp);
         }
         return success;

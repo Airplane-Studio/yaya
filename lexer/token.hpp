@@ -25,7 +25,7 @@ public:
     // the properties following are for preprocessor
     bool at_line_beg, could_expand, deleted;
     int orig_start_col, orig_end_col;
-    int idx, orig_idx;
+    int idx, orig_idx, macro_idx;
     Token(TokenType type = TT_EOF, UTF8String lexeme = "", bool at_line_beg = false,
         UTF8String filename = "", int line = 0, int start_col = -1, int end_col = -1)
       : type(type), lexeme(lexeme), line(line), start_col(start_col), at_line_beg(at_line_beg), could_expand(true),

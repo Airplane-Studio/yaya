@@ -1,3 +1,3 @@
-%define A b
+%define PRINT println
 
-A
+PRINT

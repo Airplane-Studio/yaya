@@ -33,12 +33,12 @@ public:
         key = other.key;
         value = other.value;
         if (other.left) {
-            left = new TreeNode(other.left.key, other.left.value);
-            *left = other->left;
+            left = new TreeNode(other.left->key, other.left->value);
+            *left = *other.left;
         }
         if (other.right) {
-            right = new TreeNode(other.right.key, other.right.value);
-            *right = other->right;
+            right = new TreeNode(other.right->key, other.right->value);
+            *right = *other.right;
         }
         return *this;
     }
@@ -47,12 +47,12 @@ public:
         key = other.key;
         value = other.value;
         if (other.left) {
-            left = new TreeNode(other.left.key, other.left.value);
-            *left = other->left;
+            left = new TreeNode(other.left->key, other.left->value);
+            *left = *other.left;
         }
         if (other.right) {
-            right = new TreeNode(other.right.key, other.right.value);
-            *right = other->right;
+            right = new TreeNode(other.right->key, other.right->value);
+            *right = *other.right;
         }
     }
 
@@ -280,11 +280,11 @@ private:
 public:
     TreeMap() {}
     TreeMap operator=(const TreeMap &other) {
-        root = new TreeNode<K, V>(other.root);
+        root = new TreeNode<K, V>(*other.root);
         return *this;
     }
     TreeMap(const TreeMap &other) {
-        root = new TreeNode<K, V>(other.root);
+        root = new TreeNode<K, V>(*other.root);
     }
     ~TreeMap() {
         delete root;

@@ -4,6 +4,7 @@
 #include "preprocessor.h"
 #include "util.h"
 #include "parser.h"
+#include "ast.h"
 
 char *read_whole_file(const char *filename, int *osize) {
     FILE *fp = fopen(filename, "rb+");
@@ -50,8 +51,8 @@ void run(char *code, const char *filename) {
     pp.preprocess(toks);
     ErrorReport post_pp = ErrorReport(toks);
     Parser parser = Parser(toks, orig, post_pp);
-    /* BaseNode *root = */parser.parse();
-    // io.println(root);
+    BaseNode *root = parser.parse();
+    io.println(root);
 }
 
 void repl() {

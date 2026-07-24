@@ -2,3 +2,4 @@ out/*
 cleanroom/*
 yaya
 a.out
+ast/ast.hpp

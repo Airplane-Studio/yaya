@@ -1,3 +1,1 @@
-%define PRINT println
-
-PRINT
+((((123

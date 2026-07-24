@@ -1,0 +1,7 @@
+node Integer
+tok lit
+
+node BinOp
+sub left
+tok op
+sub right

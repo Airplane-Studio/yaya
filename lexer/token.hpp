@@ -29,7 +29,7 @@ public:
     Token(TokenType type = TT_EOF, UTF8String lexeme = "", bool at_line_beg = false,
         UTF8String filename = "", int line = 0, int start_col = -1, int end_col = -1)
       : type(type), lexeme(lexeme), line(line), start_col(start_col), at_line_beg(at_line_beg), could_expand(true),
-        orig_start_col(start_col), deleted(false), src_file(filename) {
+        orig_start_col(start_col), deleted(false), src_file(filename), idx(-1), orig_idx(-1), macro_idx(-1) {
         if (end_col == -1 && start_col != -1) end_col = start_col + lexeme.size() - 1;
         this->orig_end_col = this->end_col = end_col;
     }

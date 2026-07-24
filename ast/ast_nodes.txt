@@ -5,3 +5,7 @@ node BinOp
 sub left
 tok op
 sub right
+
+node PrefixUnaryOp
+tok op
+sub node

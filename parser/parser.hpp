@@ -50,7 +50,14 @@ private:
     BaseNode *parse_binary() {
         Token op = peek(-1);
         ParseRule rule = get_rule(op);
-        return parse_expression();
+        return parse_precedence((Precedence)(rule.prec + 1));
+    }
+    BaseNode *parse_unary() {
+        Token op = peek(-1);
+        return new PrefixUnaryOpNode(op, parse_precedence(PREC_UNARY));
+    }
+    BaseNode *parse_expression() {
+        return parse_precedence(PREC_ASSIGN);
     }
     typedef BaseNode *(Parser::*ParseFunc)();
     struct ParseRule {
@@ -66,7 +73,7 @@ private:
         rules["int literal"] = ParseRule(&Parser::parse_number, nullptr, PREC_NONE);
         rules["("]           = ParseRule(&Parser::parse_grouping, nullptr, PREC_NONE);
         rules["+"]           = ParseRule(nullptr, &Parser::parse_binary, PREC_PLUSMINUS);
-        rules["-"]           = ParseRule(nullptr, &Parser::parse_binary, PREC_PLUSMINUS);
+        rules["-"]           = ParseRule(&Parser::parse_unary, &Parser::parse_binary, PREC_PLUSMINUS);
         rules["*"]           = ParseRule(nullptr, &Parser::parse_binary, PREC_MULDIVMOD);
         rules["/"]           = ParseRule(nullptr, &Parser::parse_binary, PREC_MULDIVMOD);
     }
@@ -75,7 +82,7 @@ private:
         if (rules.count(tok.lexeme)) return rules[tok.lexeme];
         return ParseRule();
     }
-    BaseNode *parse_expression() {
+    BaseNode *parse_precedence(Precedence prec) {
         Token previous = current_tok;
         advance();
         ParseFunc prefix = get_rule(previous).prefix;
@@ -84,7 +91,7 @@ private:
             return nullptr;
         }
         BaseNode *node = (this->*prefix)();
-        while (get_rule(current_tok).infix) {
+        while (get_rule(current_tok).prec >= prec) {
             Token op = current_tok;
             advance();
             ParseFunc infix = get_rule(op).infix;
